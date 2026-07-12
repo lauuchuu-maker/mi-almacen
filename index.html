@@ -1,512 +1,309 @@
 <!DOCTYPE html>
-
 <html lang="es">
-
 <head>
-
     <meta charset="UTF-8">
-
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>Sistema de Gestión Completo</title>
-
+    <title>Sistema de Gestión de Almacén</title>
     <script src="https://cdn.tailwindcss.com"></script>
-
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
-
     <style>
-
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-
         .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 4px; }
-
     </style>
-
 </head>
-
 <body class="bg-slate-50 min-h-screen p-4 md:p-8">
-
-
 
     <div id="toast" class="fixed top-5 right-5 z-50 hidden p-4 rounded-lg shadow-lg text-white font-medium"></div>
 
-
-
     <div class="max-w-6xl mx-auto">
-
         <header class="mb-8">
-
             <h1 class="text-3xl font-bold text-slate-800">Almacén</h1>
-
             <p class="text-slate-600">Sistema de gestión integral</p>
-
         </header>
 
-
-
-        <!-- Metrics Grid -->
-
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-
             <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-
                 <p class="text-xs text-slate-500 font-bold uppercase">Ventas Hoy</p>
-
                 <p id="recaudadoHoy" class="text-2xl font-bold text-blue-600">$0.00</p>
-
             </div>
-
             <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-
                 <p class="text-xs text-emerald-600 font-bold uppercase">Ganancia Hoy</p>
-
                 <p id="gananciaHoy" class="text-2xl font-bold text-emerald-600">$0.00</p>
-
             </div>
-
             <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-
                 <p class="text-xs text-purple-600 font-bold uppercase">Ventas Mes</p>
-
                 <p id="totalMes" class="text-2xl font-bold text-purple-600">$0.00</p>
-
             </div>
-
             <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-
                 <p class="text-xs text-orange-600 font-bold uppercase">Ganancia Mes</p>
-
                 <p id="gananciaMes" class="text-2xl font-bold text-orange-600">$0.00</p>
-
             </div>
-
         </div>
-
-
-
-        <!-- Inventory Input Form -->
 
         <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4 items-end">
-
             <div class="lg:col-span-2">
-
                 <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Nombre</label>
-
                 <input type="text" id="prod" placeholder="Producto" class="p-2 border rounded-lg w-full">
-
             </div>
-
             <div>
-
                 <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Costo ($)</label>
-
                 <input type="number" id="costo" placeholder="0.00" class="p-2 border rounded-lg w-full">
-
             </div>
-
             <div>
-
                 <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Stock</label>
-
                 <input type="number" id="stock" placeholder="0" class="p-2 border rounded-lg w-full">
-
             </div>
-
             <div>
-
                 <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">% Ganancia</label>
-
                 <input type="number" id="porcentaje" value="30" class="p-2 border rounded-lg w-full">
-
             </div>
-
             <div>
-
                 <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Foto</label>
-
                 <input type="file" id="fotoInput" accept="image/*" class="text-xs p-1 w-full">
-
             </div>
-
             <button onclick="agregar()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-lg transition">Agregar</button>
-
         </div>
-
-
-
-        <!-- Inventory Table -->
 
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-8">
-
             <div class="p-4 border-b border-slate-100 flex justify-between items-center">
-
                 <h2 class="font-bold text-slate-700">Inventario</h2>
-
                 <input type="text" id="busqueda" placeholder="Buscar producto..." onkeyup="renderizar()" class="p-2 border rounded-lg text-sm w-64">
-
             </div>
-
             <div class="overflow-x-auto">
-
                 <table class="w-full text-left text-sm">
-
                     <thead class="bg-slate-50 text-slate-600 uppercase text-xs font-semibold">
-
                         <tr>
-
                             <th class="p-4">Foto</th>
-
                             <th class="p-4">Producto</th>
-
                             <th class="p-4">Costo</th>
-
                             <th class="p-4">%</th>
-
                             <th class="p-4">Venta</th>
-
                             <th class="p-4">Stock</th>
-
                             <th class="p-4">Acciones</th>
-
                         </tr>
-
                     </thead>
-
                     <tbody id="cuerpoTabla" class="divide-y divide-slate-100"></tbody>
-
                 </table>
-
             </div>
-
         </div>
-
-
-
-        <!-- Cart and Controls -->
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-
             <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-
                 <h3 class="font-bold text-slate-700 mb-4">Carrito</h3>
-
                 <ul id="listaCarrito" class="space-y-2 mb-4"></ul>
-
                 <div class="flex justify-between items-center border-t pt-4">
-
                     <p class="font-bold text-lg">Total: $<span id="totalCarrito">0.00</span></p>
-
                     <button onclick="confirmarVenta()" class="bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2 px-6 rounded-lg">Confirmar Venta</button>
-
                 </div>
-
             </div>
-
             <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-
                 <h3 class="font-bold text-slate-700 mb-4">Control Diario</h3>
-
                 <button onclick="cerrarDia()" class="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg font-semibold mb-4">Cerrar Día y Guardar</button>
-
+                
+                <h4 class="text-sm font-semibold text-slate-500 mb-2">Ventas de Hoy</h4>
+                <ul id="listaVentasHoy" class="max-h-40 overflow-y-auto custom-scrollbar space-y-2 mb-4 text-sm"></ul>
+                
                 <h4 class="text-sm font-semibold text-slate-500 mb-2">Historial Cierres</h4>
-
                 <ul id="listaCierres" class="max-h-40 overflow-y-auto custom-scrollbar space-y-2"></ul>
-
             </div>
-
         </div>
-
     </div>
 
-
-
     <script>
-
         const firebaseConfig = {
-
             apiKey: "AIzaSyA2k6dGz5LHnyW_RnzZNQQbdsYsOtKGBFM",
-
             authDomain: "mi-almacen-be016.firebaseapp.com",
-
             databaseURL: "https://mi-almacen-be016-default-rtdb.firebaseio.com",
-
             projectId: "mi-almacen-be016",
-
             storageBucket: "mi-almacen-be016.firebasestorage.app",
-
             messagingSenderId: "180812846512",
-
-            appId: "1:180812846512:web:86e11643678392a9be7275",
-
-            measurementId: "G-0M16DBWTSD"
-
+            appId: "1:180812846512:web:86e11643678392a9be7275"
         };
 
-
-
         firebase.initializeApp(firebaseConfig);
-
         const db = firebase.database();
-
-
 
         let inventario = [], ventasHoy = [], historial = [], carrito = [];
 
-
-
         db.ref('almacen').on('value', (s) => { inventario = s.val() || []; renderizar(); });
-
         db.ref('ventasHoy').on('value', (s) => { ventasHoy = s.val() || []; actualizarBalance(); });
-
         db.ref('historial').on('value', (s) => { historial = s.val() || []; actualizarBalance(); });
 
-
-
         function notify(msg, color) {
-
             const t = document.getElementById('toast');
-
             t.innerText = msg;
-
             t.className = `fixed top-5 right-5 z-50 p-4 rounded-lg shadow-lg text-white ${color}`;
-
             t.classList.remove('hidden');
-
             setTimeout(() => t.classList.add('hidden'), 3000);
-
         }
-
-
 
         function renderizar() {
-
             const tbody = document.getElementById('cuerpoTabla');
-
             const busqueda = document.getElementById('busqueda').value.toLowerCase();
-
             tbody.innerHTML = '';
-
             inventario.forEach((item, i) => {
-
                 if (!item.nombre.toLowerCase().includes(busqueda)) return;
-
                 const precio = (parseFloat(item.costo) * (1 + parseFloat(item.porcentaje) / 100));
-
                 tbody.innerHTML += `
-
                     <tr class="hover:bg-slate-50">
-
                         <td class="p-4">${item.foto ? `<img src="${item.foto}" class="w-10 h-10 object-cover rounded">` : "No"}</td>
-
                         <td class="p-4 font-medium text-slate-800">${item.nombre}</td>
-
                         <td class="p-4">$${parseFloat(item.costo).toFixed(2)}</td>
-
                         <td class="p-4">${item.porcentaje}%</td>
-
                         <td class="p-4 font-bold text-emerald-700">$${precio.toFixed(2)}</td>
-
                         <td class="p-4">${item.stock}</td>
-
                         <td class="p-4 flex gap-2">
-
                             <input type="number" id="cant-${i}" value="1" class="w-12 p-1 border rounded text-center text-xs">
-
                             <button onclick="agregarAlCarrito(${i})" class="bg-blue-500 text-white px-2 py-1 rounded text-xs">+</button>
-
                             <button onclick="eliminarProducto(${i})" class="text-red-400">🗑️</button>
-
                         </td>
-
                     </tr>`;
-
             });
-
         }
-
-
 
         function agregar() {
-
             const nombre = document.getElementById('prod').value;
-
             const costo = parseFloat(document.getElementById('costo').value);
-
             const stock = parseInt(document.getElementById('stock').value);
-
             const porcentaje = parseFloat(document.getElementById('porcentaje').value);
-
             const fotoInput = document.getElementById('fotoInput');
-
             
-
             if (!nombre || isNaN(costo) || isNaN(stock)) return notify("Completa todos los campos", "bg-red-500");
 
-
-
             function guardar(foto) {
-
                 inventario.push({ nombre, costo, stock, porcentaje, foto });
-
                 db.ref('almacen').set(inventario);
-
                 notify("Producto agregado", "bg-emerald-500");
-
+                document.getElementById('prod').value = '';
+                document.getElementById('costo').value = '';
+                document.getElementById('stock').value = '';
             }
 
-
-
             if (fotoInput.files[0]) {
-
                 const reader = new FileReader();
-
                 reader.onload = (e) => guardar(e.target.result);
-
                 reader.readAsDataURL(fotoInput.files[0]);
-
             } else guardar(null);
-
         }
-
-
 
         function eliminarProducto(i) {
-
             inventario.splice(i, 1);
-
             db.ref('almacen').set(inventario);
-
         }
-
-
 
         function agregarAlCarrito(i) {
-
             const cant = parseInt(document.getElementById(`cant-${i}`).value);
-
             const prod = inventario[i];
-
             const precioVenta = (parseFloat(prod.costo) * (1 + parseFloat(prod.porcentaje) / 100));
-
             const gananciaUnit = precioVenta - parseFloat(prod.costo);
-
             
-
             if (cant > prod.stock) return notify("Stock insuficiente", "bg-red-500");
-
             carrito.push({ index: i, nombre: prod.nombre, cant, total: precioVenta * cant, ganancia: gananciaUnit * cant });
-
             actualizarCarrito();
-
         }
-
-
 
         function actualizarCarrito() {
-
             const list = document.getElementById('listaCarrito');
-
             let total = 0;
-
             list.innerHTML = "";
-
             carrito.forEach((item, i) => {
-
                 total += item.total;
-
                 list.innerHTML += `<li class="flex justify-between text-sm bg-slate-50 p-2 rounded">${item.nombre} x${item.cant} = $${item.total.toFixed(2)} <button onclick="carrito.splice(${i},1);actualizarCarrito()" class="text-red-400 font-bold">X</button></li>`;
-
             });
-
             document.getElementById('totalCarrito').innerText = total.toFixed(2);
-
         }
-
-
 
         function confirmarVenta() {
-
             if (carrito.length === 0) return;
-
             let totalVenta = 0, totalGanancia = 0;
-
             carrito.forEach(item => {
-
                 inventario[item.index].stock -= item.cant;
-
                 totalVenta += item.total;
-
                 totalGanancia += item.ganancia;
-
             });
-
             ventasHoy.push({ total: totalVenta, ganancia: totalGanancia, timestamp: Date.now() });
-
             db.ref('almacen').set(inventario);
-
             db.ref('ventasHoy').set(ventasHoy);
-
             carrito = [];
-
             actualizarCarrito();
-
             notify("Venta registrada!", "bg-emerald-600");
-
         }
-
-
 
         function cerrarDia() {
-
             if (ventasHoy.length === 0) return;
-
             let tTotal = 0, tGanancia = 0;
-
             ventasHoy.forEach(v => { tTotal += v.total; tGanancia += v.ganancia; });
-
             historial.push({ fecha: new Date().toLocaleDateString(), total: tTotal, ganancia: tGanancia });
-
             db.ref('historial').set(historial);
-
-            db.ref('ventasHoy').set(null);
-
+            db.ref('ventasHoy').set(null); // Esto dispara la actualización de ventasHoy y debería limpiar la UI
             notify("Día cerrado", "bg-blue-600");
-
         }
 
+        function eliminarVentaHoy(i) {
+            ventasHoy.splice(i, 1);
+            db.ref('ventasHoy').set(ventasHoy);
+        }
 
+        function editarVentaHoy(i) {
+            let nuevoTotal = prompt("Ingresa nuevo total:", ventasHoy[i].total);
+            let nuevaGanancia = prompt("Ingresa nueva ganancia:", ventasHoy[i].ganancia);
+            if (nuevoTotal && nuevaGanancia) {
+                ventasHoy[i].total = parseFloat(nuevoTotal);
+                ventasHoy[i].ganancia = parseFloat(nuevaGanancia);
+                db.ref('ventasHoy').set(ventasHoy);
+            }
+        }
+
+        function eliminarCierre(i) {
+            historial.splice(i, 1);
+            db.ref('historial').set(historial);
+        }
+
+        function editarCierre(i) {
+            let nuevoTotal = prompt("Ingresa nuevo total:", historial[i].total);
+            let nuevaGanancia = prompt("Ingresa nueva ganancia:", historial[i].ganancia);
+            if (nuevoTotal && nuevaGanancia) {
+                historial[i].total = parseFloat(nuevoTotal);
+                historial[i].ganancia = parseFloat(nuevaGanancia);
+                db.ref('historial').set(historial);
+            }
+        }
 
         function actualizarBalance() {
-
             let tVenta = 0, tGanancia = 0, tVentasMes = 0, tGananciaMes = 0;
-
             ventasHoy.forEach(v => { tVenta += v.total; tGanancia += v.ganancia; });
-
             historial.forEach(h => { tVentasMes += h.total; tGananciaMes += h.ganancia; });
-
             
-
             document.getElementById('recaudadoHoy').innerText = `$${tVenta.toFixed(2)}`;
-
             document.getElementById('gananciaHoy').innerText = `$${tGanancia.toFixed(2)}`;
-
             document.getElementById('totalMes').innerText = `$${tVentasMes.toFixed(2)}`;
-
             document.getElementById('gananciaMes').innerText = `$${tGananciaMes.toFixed(2)}`;
-
             
+            const lVentas = document.getElementById('listaVentasHoy');
+            lVentas.innerHTML = ventasHoy.map((v, i) => `
+                <li class="flex justify-between items-center bg-slate-50 p-2 rounded">
+                    <span>$${v.total.toFixed(2)} (G: $${v.ganancia.toFixed(2)})</span>
+                    <div class="flex gap-1">
+                        <button onclick="editarVentaHoy(${i})" class="text-blue-500 font-bold px-2">Edit</button>
+                        <button onclick="eliminarVentaHoy(${i})" class="text-red-500 font-bold px-2">X</button>
+                    </div>
+                </li>`).join('');
 
             const lHist = document.getElementById('listaCierres');
-
-            lHist.innerHTML = historial.map(h => `<li class="text-xs p-2 bg-slate-50 rounded border flex justify-between"><span>${h.fecha}</span> <strong>$${h.total.toFixed(2)}</strong> <span class="text-emerald-600 font-semibold">$${h.ganancia.toFixed(2)}</span></li>`).join('');
-
+            lHist.innerHTML = historial.map((h, i) => `
+                <li class="text-xs p-2 bg-slate-50 rounded border flex justify-between items-center">
+                    <div>
+                        <span class="block font-bold">${h.fecha}</span>
+                        <span class="text-slate-600">$${h.total.toFixed(2)} |</span>
+                        <span class="text-emerald-600 font-semibold">G: $${h.ganancia.toFixed(2)}</span>
+                    </div>
+                    <div class="flex gap-1">
+                        <button onclick="editarCierre(${i})" class="text-blue-500 font-bold px-2">Edit</button>
+                        <button onclick="eliminarCierre(${i})" class="text-red-500 font-bold px-2">X</button>
+                    </div>
+                </li>`).join('');
         }
-
     </script>
-
 </body>
-
-</html> 
-
+</html>
