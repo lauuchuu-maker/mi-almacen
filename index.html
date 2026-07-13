@@ -1,19 +1,25 @@
-// Asegúrate de que esta función esté tal cual en tu script
-function renderizarHistorial() {
-    const listCierres = document.getElementById('listaCierres');
-    if (!listCierres) return;
+function actualizarBalance() {
+    let tVenta = 0, tGanancia = 0, tVentasMes = 0, tGananciaMes = 0;
+    ventasHoy.forEach(v => { tVenta += v.total; tGanancia += v.ganancia; });
+    historial.forEach(h => { tVentasMes += h.total; tGananciaMes += h.ganancia; });
     
-    listCierres.innerHTML = historial.map((h, i) => `
-        <li class="text-sm p-2 bg-slate-50 border-b flex justify-between items-center">
-            <span>${h.fecha}: <strong>$${parseFloat(h.total).toFixed(2)}</strong></span>
-            <button onclick="editarCierre(${i})" class="text-blue-500 hover:text-blue-700 font-bold px-2">✏️</button>
-        </li>
-    `).join('');
+    document.getElementById('recaudadoHoy').innerText = `$${tVenta.toFixed(2)}`;
+    document.getElementById('gananciaHoy').innerText = `$${tGanancia.toFixed(2)}`;
+    document.getElementById('totalMes').innerText = `$${tVentasMes.toFixed(2)}`;
+    document.getElementById('gananciaMes').innerText = `$${tGananciaMes.toFixed(2)}`;
+    
+    // AQUÍ ESTÁ LA CORRECCIÓN: He añadido el botón ✏️ dentro del map
+    const lHist = document.getElementById('listaCierres');
+    lHist.innerHTML = historial.map((h, i) => `
+        <li class="text-xs p-2 bg-slate-50 rounded border flex justify-between items-center mb-1">
+            <span>${h.fecha} - <strong>$${h.total.toFixed(2)}</strong></span>
+            <button onclick="editarCierre(${i})" class="text-blue-500 hover:text-blue-700 ml-2">✏️</button>
+        </li>`).join('');
 }
 
-// Y esta es la función que hace que el botón realmente funcione:
+// Asegúrate de tener también esta función para que el botón haga algo:
 function editarCierre(i) {
-    const nuevoTotal = prompt("Corregir total del día:", historial[i].total);
+    const nuevoTotal = prompt("Corregir Total:", historial[i].total);
     if (nuevoTotal !== null) {
         historial[i].total = parseFloat(nuevoTotal);
         db.ref('historial').set(historial);
