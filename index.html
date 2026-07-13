@@ -244,14 +244,14 @@
 
         function editarVentaHoy(i) {
             let v = ventasHoy[i];
+            let nuevaDesc = prompt("Modifica los productos vendidos:", v.descripcion || "");
             let nuevoTotal = prompt("Ingresa nuevo total:", v.total.toFixed(2));
             let nuevaGanancia = prompt("Ingresa nueva ganancia:", v.ganancia.toFixed(2));
-            let nuevaDesc = prompt("Modifica los productos vendidos:", v.descripcion || "");
             
-            if (nuevoTotal !== null && nuevaGanancia !== null && nuevaDesc !== null) {
+            if (nuevaDesc !== null && nuevoTotal !== null && nuevaGanancia !== null) {
+                ventasHoy[i].descripcion = nuevaDesc;
                 ventasHoy[i].total = parseFloat(nuevoTotal);
                 ventasHoy[i].ganancia = parseFloat(nuevaGanancia);
-                ventasHoy[i].descripcion = nuevaDesc;
                 db.ref('ventasHoy').set(ventasHoy);
                 notify("Venta editada", "bg-blue-500");
             }
