@@ -105,25 +105,23 @@
         const db = firebase.database();
         let inventario = [], ventasHoy = [], historial = [], carrito = [];
 
-        function ajustarStock(productos, esSuma) {
-            productos.forEach(p => {
-                const item = inventario[p.index];
-                if(item) {
-                    item.stock = parseInt(item.stock) + (esSuma ? parseInt(p.cant) : -parseInt(p.cant));
-                }
-            });
-            db.ref('almacen').set(inventario);
-        }
-
-        db.ref('almacen').on('value', (s) => { inventario = s.val() || []; renderizar(); });
+        // Inicialización y Listeners
+        db.ref('almacen').on('value', (s) => { 
+            inventario = s.val() || []; 
+            renderizar(); 
+        });
+        
         db.ref('ventasHoy').on('value', (s) => { 
             const data = s.val();
-            ventasHoy = data ? Object.values(data) : []; 
+            // FORZAR A ARRAY
+            ventasHoy = data ? (Array.isArray(data) ? data : Object.values(data)) : []; 
             actualizarBalance(); 
         });
+        
         db.ref('historial').on('value', (s) => { 
             const data = s.val();
-            historial = data ? Object.values(data) : []; 
+            // FORZAR A ARRAY
+            historial = data ? (Array.isArray(data) ? data : Object.values(data)) : []; 
             actualizarBalance(); 
         });
 
@@ -135,17 +133,7 @@
             setTimeout(() => t.classList.add('hidden'), 3000);
         }
 
-        function editarProducto(i) {
-            const p = inventario[i];
-            const nuevoNombre = prompt("Nombre:", p.nombre);
-            const nuevoCosto = prompt("Costo:", p.costo);
-            const nuevoStock = prompt("Stock:", p.stock);
-            const nuevoPorc = prompt("% Ganancia:", p.porcentaje);
-            if(nuevoNombre !== null) {
-                inventario[i] = { ...p, nombre: nuevoNombre, costo: parseFloat(nuevoCosto), stock: parseInt(nuevoStock), porcentaje: parseFloat(nuevoPorc) };
-                db.ref('almacen').set(inventario);
-            }
-        }
+        // --- FUNCIONES CORE ---
 
         function renderizar() {
             const tbody = document.getElementById('cuerpoTabla');
@@ -157,7 +145,7 @@
                         <td class="p-4">$${parseFloat(item.costo).toFixed(2)}</td>
                         <td class="p-4">${item.porcentaje}%</td>
                         <td class="p-4 font-bold ${item.stock < 5 ? 'text-red-500' : 'text-slate-700'}">${item.stock}</td>
-                        <td class="p-4 flex gap-2">
+                        <td class="p-4 flex gap-2 items-center">
                             <input type="number" id="cant-${i}" value="1" class="w-12 p-1 border rounded text-center text-xs">
                             <button onclick="agregarAlCarrito(${i})" class="bg-blue-500 text-white px-2 py-1 rounded text-xs">+</button>
                             <button onclick="editarProducto(${i})" class="bg-slate-200 px-2 py-1 rounded text-xs">✏️</button>
@@ -175,6 +163,18 @@
             inventario.push({ nombre, costo, stock, porcentaje });
             db.ref('almacen').set(inventario);
             notify("Producto agregado", "bg-emerald-500");
+        }
+
+        function editarProducto(i) {
+            const p = inventario[i];
+            const nN = prompt("Nombre:", p.nombre);
+            const nC = prompt("Costo:", p.costo);
+            const nS = prompt("Stock:", p.stock);
+            const nP = prompt("% Ganancia:", p.porcentaje);
+            if(nN !== null) {
+                inventario[i] = { nombre: nN, costo: parseFloat(nC), stock: parseInt(nS), porcentaje: parseFloat(nP) };
+                db.ref('almacen').set(inventario);
+            }
         }
 
         function agregarAlCarrito(i) {
@@ -200,13 +200,18 @@
         function confirmarVenta() {
             if (carrito.length === 0) return;
             let totalVenta = 0, totalGanancia = 0;
-            let desc = carrito.map(item => `${item.cant}x ${item.nombre}`).join(', ');
-            ajustarStock(carrito.map(c => ({index: c.index, cant: c.cant})), false);
-            carrito.forEach(item => {
-                totalVenta += item.total;
-                totalGanancia += item.ganancia;
-            });
-            const nuevaVenta = { total: totalVenta, ganancia: totalGanancia, timestamp: Date.now(), descripcion: desc, items: carrito.map(c => ({ index: c.index, cant: c.cant })) };
+            carrito.forEach(item => { totalVenta += item.total; totalGanancia += item.ganancia; });
+            
+            // Actualizar stock real
+            carrito.forEach(c => { inventario[c.index].stock -= c.cant; });
+            db.ref('almacen').set(inventario);
+
+            const nuevaVenta = { 
+                total: totalVenta, 
+                ganancia: totalGanancia, 
+                timestamp: Date.now(), 
+                items: carrito 
+            };
             ventasHoy.push(nuevaVenta);
             db.ref('ventasHoy').set(ventasHoy);
             carrito = [];
@@ -215,12 +220,12 @@
         }
 
         function eliminarVentaHoy(i) {
+            if(!confirm('¿Eliminar venta? Se devolverá el stock.')) return;
             const v = ventasHoy[i];
-            if(confirm('¿Eliminar venta? Se devolverá el stock.')) {
-                ajustarStock(v.items, true);
-                ventasHoy.splice(i, 1);
-                db.ref('ventasHoy').set(ventasHoy);
-            }
+            v.items.forEach(it => { inventario[it.index].stock += it.cant; });
+            db.ref('almacen').set(inventario);
+            ventasHoy.splice(i, 1);
+            db.ref('ventasHoy').set(ventasHoy.length ? ventasHoy : null);
         }
 
         function cerrarDia() {
@@ -230,8 +235,7 @@
                 tTotal += v.total; 
                 tGanancia += v.ganancia; 
                 v.items.forEach(it => {
-                    const nombre = inventario[it.index]?.nombre || "Desconocido";
-                    resumenProd[nombre] = (resumenProd[nombre] || 0) + it.cant;
+                    resumenProd[it.nombre] = (resumenProd[it.nombre] || 0) + it.cant;
                 });
             });
             historial.push({ fecha: new Date().toLocaleDateString(), total: tTotal, ganancia: tGanancia, productosVendidos: resumenProd });
@@ -242,34 +246,29 @@
 
         function actualizarBalance() {
             let tVenta = 0, tGanancia = 0, tVentasMes = 0, tGananciaMes = 0;
-            (ventasHoy || []).forEach(v => { tVenta += v.total; tGanancia += v.ganancia; });
-            (historial || []).forEach(h => { tVentasMes += h.total; tGananciaMes += h.ganancia; });
+            ventasHoy.forEach(v => { tVenta += v.total; tGanancia += v.ganancia; });
+            historial.forEach(h => { tVentasMes += h.total; tGananciaMes += h.ganancia; });
             
             document.getElementById('recaudadoHoy').innerText = `$${tVenta.toFixed(2)}`;
             document.getElementById('gananciaHoy').innerText = `$${tGanancia.toFixed(2)}`;
             document.getElementById('totalMes').innerText = `$${tVentasMes.toFixed(2)}`;
             document.getElementById('gananciaMes').innerText = `$${tGananciaMes.toFixed(2)}`;
             
-            const lVentas = document.getElementById('listaVentasHoy');
-            lVentas.innerHTML = (ventasHoy || []).map((v, i) => `
-                <li class="bg-white p-2 rounded border border-slate-100">
+            // Listas
+            document.getElementById('listaVentasHoy').innerHTML = ventasHoy.map((v, i) => `
+                <li class="bg-white p-2 rounded border border-slate-100 shadow-sm">
                     <div class="flex justify-between text-xs font-bold text-blue-600">
                         <span>$${v.total.toFixed(2)}</span>
                         <button onclick="eliminarVentaHoy(${i})" class="text-red-500 underline">Eliminar</button>
                     </div>
-                    <p class="text-[10px] text-slate-500">${v.descripcion}</p>
-                </li>`).join('');
+                    <p class="text-[10px] text-slate-500">${v.items.map(it => it.nombre + ' x' + it.cant).join(', ')}</p>
+                </li>`).join('') || '<li class="text-slate-400 text-center text-xs p-2">Sin ventas hoy</li>';
 
-            const lHist = document.getElementById('listaCierres');
-            lHist.innerHTML = (historial || []).length > 0 
-                ? historial.map((h, i) => {
-                    const detalle = Object.entries(h.productosVendidos || {}).map(([p, c]) => `<span class="bg-slate-100 px-1 rounded mr-1">${p} x${c}</span>`).join('');
-                    return `<li class="p-2 bg-slate-50 rounded border mb-2">
-                                <div class="font-bold flex justify-between"><span>${h.fecha}</span> <span>$${h.total.toFixed(2)}</span></div>
-                                <div class="mt-1 flex flex-wrap gap-1">${detalle}</div>
-                            </li>`;
-                }).join('')
-                : '<li class="text-slate-400 italic text-center p-2 text-xs">Sin cierres aún</li>';
+            document.getElementById('listaCierres').innerHTML = historial.slice().reverse().map(h => `
+                <li class="p-2 bg-slate-50 rounded border mb-2">
+                    <div class="font-bold flex justify-between text-slate-700"><span>${h.fecha}</span> <span>$${h.total.toFixed(2)}</span></div>
+                    <div class="mt-1 flex flex-wrap gap-1 text-[10px]">${Object.entries(h.productosVendidos || {}).map(([p, c]) => `<span class="bg-blue-100 text-blue-700 px-1 rounded">${p} x${c}</span>`).join(' ')}</div>
+                </li>`).join('') || '<li class="text-slate-400 text-center text-xs p-2">Sin cierres aún</li>';
         }
     </script>
 </body>
