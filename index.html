@@ -105,22 +105,14 @@
         const db = firebase.database();
         let inventario = [], ventasHoy = [], historial = [], carrito = [];
 
-        // Inicialización y Listeners
-        db.ref('almacen').on('value', (s) => { 
-            inventario = s.val() || []; 
-            renderizar(); 
-        });
-        
+        db.ref('almacen').on('value', (s) => { inventario = s.val() || []; renderizar(); });
         db.ref('ventasHoy').on('value', (s) => { 
             const data = s.val();
-            // FORZAR A ARRAY
             ventasHoy = data ? (Array.isArray(data) ? data : Object.values(data)) : []; 
             actualizarBalance(); 
         });
-        
         db.ref('historial').on('value', (s) => { 
             const data = s.val();
-            // FORZAR A ARRAY
             historial = data ? (Array.isArray(data) ? data : Object.values(data)) : []; 
             actualizarBalance(); 
         });
@@ -132,8 +124,6 @@
             t.classList.remove('hidden');
             setTimeout(() => t.classList.add('hidden'), 3000);
         }
-
-        // --- FUNCIONES CORE ---
 
         function renderizar() {
             const tbody = document.getElementById('cuerpoTabla');
@@ -202,17 +192,10 @@
             let totalVenta = 0, totalGanancia = 0;
             carrito.forEach(item => { totalVenta += item.total; totalGanancia += item.ganancia; });
             
-            // Actualizar stock real
             carrito.forEach(c => { inventario[c.index].stock -= c.cant; });
             db.ref('almacen').set(inventario);
 
-            const nuevaVenta = { 
-                total: totalVenta, 
-                ganancia: totalGanancia, 
-                timestamp: Date.now(), 
-                items: carrito 
-            };
-            ventasHoy.push(nuevaVenta);
+            ventasHoy.push({ total: totalVenta, ganancia: totalGanancia, timestamp: Date.now(), items: carrito });
             db.ref('ventasHoy').set(ventasHoy);
             carrito = [];
             actualizarCarrito();
@@ -234,9 +217,7 @@
             ventasHoy.forEach(v => { 
                 tTotal += v.total; 
                 tGanancia += v.ganancia; 
-                v.items.forEach(it => {
-                    resumenProd[it.nombre] = (resumenProd[it.nombre] || 0) + it.cant;
-                });
+                v.items.forEach(it => { resumenProd[it.nombre] = (resumenProd[it.nombre] || 0) + it.cant; });
             });
             historial.push({ fecha: new Date().toLocaleDateString(), total: tTotal, ganancia: tGanancia, productosVendidos: resumenProd });
             db.ref('historial').set(historial);
@@ -254,10 +235,9 @@
             document.getElementById('totalMes').innerText = `$${tVentasMes.toFixed(2)}`;
             document.getElementById('gananciaMes').innerText = `$${tGananciaMes.toFixed(2)}`;
             
-            // Listas
             document.getElementById('listaVentasHoy').innerHTML = ventasHoy.map((v, i) => `
-                <li class="bg-white p-2 rounded border border-slate-100 shadow-sm">
-                    <div class="flex justify-between text-xs font-bold text-blue-600">
+                <li class="bg-white p-2 rounded border border-slate-100 shadow-sm mb-2">
+                    <div class="flex justify-between text-xs font-bold text-blue-600 mb-1">
                         <span>$${v.total.toFixed(2)}</span>
                         <button onclick="eliminarVentaHoy(${i})" class="text-red-500 underline">Eliminar</button>
                     </div>
