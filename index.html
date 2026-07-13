@@ -512,7 +512,7 @@
 
             
 
-            ventasHoy.push({ total: item.precio, costo: item.costo });
+            ventasHoy.push({ total: total, descripcion: descripcionVenta });
 
             
 
@@ -530,14 +530,15 @@
 
 
 
-         function cerrarDia() {
-            let totalDia = ventasHoy.reduce((a, b) => a + b.total, 0);
-            let costoDia = ventasHoy.reduce((a, b) => a + b.costo, 0);
-            historial.push({ fecha: new Date().toLocaleDateString(), total: totalDia, costo: costoDia });
-            db.ref('historial').set(historial);
-            db.ref('ventasHoy').remove();
-            ventasHoy = [];
-        }
+        function cerrarDia() {
+
+            if (ventasHoy.length === 0) return alert("No hay ventas registradas el día de hoy.");
+
+            
+
+            let totalDia = ventasHoy.reduce((a, b) => a + (b.total || 0), 0);
+
+            let todoLoVendidoHoy = ventasHoy.map(v => v.descripcion).join(' | ');
 
             
 
@@ -577,17 +578,17 @@
 
 
 
-          function actualizarBalance() {
-            let tHoy = ventasHoy.reduce((a, b) => a + b.total, 0);
-            let cHoy = ventasHoy.reduce((a, b) => a + b.costo, 0);
-            document.getElementById('recaudadoHoy').innerText = "$" + tHoy.toFixed(2);
-            document.getElementById('gananciaHoy').innerText = "$" + (tHoy - cHoy).toFixed(2);
+        function actualizarBalance() {
 
-            let tMes = historial.reduce((a, b) => a + b.total, 0);
-            let cMes = historial.reduce((a, b) => a + b.costo, 0);
-            document.getElementById('totalMes').innerText = "$" + tMes.toFixed(2);
-            document.getElementById('gananciaMes').innerText = "$" + (tMes - cMes).toFixed(2);
-        }
+            let totalHoy = ventasHoy.reduce((a, b) => a + (b.total || 0), 0);
+
+            let totalMes = historial.reduce((sum, item) => sum + (item.total || 0), 0);
+
+            
+
+            document.getElementById('recaudadoHoy').innerText = "$" + totalHoy.toFixed(2);
+
+            document.getElementById('totalMes').innerText = "$" + totalMes.toFixed(2);
 
             
 
@@ -740,21 +741,19 @@
                 db.ref('historial').set(historial);
 
             }
-
-        }
-        function calcularYMostrarGanancias() { 
+        function calcularYMostrarGanancias() {
             
-    let totalHoy = ventasHoy.reduce((a, b) => a + (b.total || 0), 0);
-    
-            document.getElementById('recaudadoHoy').innerText = "$" + totalHoy.toFixed(2);
- 
-    let totalMes = historial.reduce((sum, item) => sum + (item.total || 0), 0);
-    
-            document.getElementById('totalMes').innerText = "$" + totalMes.toFixed(2);
+            let totalHoy = ventasHoy.reduce((a, b) => a + (b.total || 0), 0);
+                document.getElementById('recaudadoHoy').innerText = "$" + totalHoy.toFixed(2);
+  
+            let totalMes = historial.reduce((sum, item) => sum + (item.total || 0), 0);
+                document.getElementById('totalMes').innerText = "$" + totalMes.toFixed(2);
 }
+        }
+
     </script>
 
 </body>
 
-</html> 
+</html>  
 
