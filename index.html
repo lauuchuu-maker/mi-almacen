@@ -13,13 +13,12 @@
     </style>
 </head>
 <body class="bg-slate-50 min-h-screen p-4 md:p-8">
-
     <div id="toast" class="fixed top-5 right-5 z-50 hidden p-4 rounded-lg shadow-lg text-white font-medium"></div>
 
     <div class="max-w-6xl mx-auto">
         <header class="mb-8">
             <h1 class="text-3xl font-bold text-slate-800">Almacén</h1>
-            <p class="text-slate-600">Sistema de gestión integral</p>
+            <p class="text-slate-600">Gestión de Stock y Ventas</p>
         </header>
 
         <!-- Métricas -->
@@ -60,31 +59,17 @@
                 <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">% Ganancia</label>
                 <input type="number" id="porcentaje" value="30" class="p-2 border rounded-lg w-full">
             </div>
-            <div>
-                <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Foto</label>
-                <input type="file" id="fotoInput" accept="image/*" class="text-xs p-1 w-full">
-            </div>
             <button onclick="agregar()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-lg transition">Agregar</button>
         </div>
 
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-8">
-            <div class="p-4 border-b border-slate-100 flex justify-between items-center">
-                <h2 class="font-bold text-slate-700">Inventario</h2>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm">
-                    <thead class="bg-slate-50 text-slate-600 uppercase text-xs font-semibold">
-                        <tr>
-                            <th class="p-4">Producto</th>
-                            <th class="p-4">Costo</th>
-                            <th class="p-4">%</th>
-                            <th class="p-4">Stock</th>
-                            <th class="p-4">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="cuerpoTabla" class="divide-y divide-slate-100"></tbody>
-                </table>
-            </div>
+            <div class="p-4 border-b border-slate-100"><h2 class="font-bold text-slate-700">Inventario</h2></div>
+            <table class="w-full text-left text-sm">
+                <thead class="bg-slate-50 text-slate-600 uppercase text-xs font-semibold">
+                    <tr><th class="p-4">Producto</th><th class="p-4">Costo</th><th class="p-4">%</th><th class="p-4">Stock</th><th class="p-4">Acciones</th></tr>
+                </thead>
+                <tbody id="cuerpoTabla" class="divide-y divide-slate-100"></tbody>
+            </table>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -99,10 +84,9 @@
             <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                 <h3 class="font-bold text-slate-700 mb-4">Control Diario</h3>
                 <button onclick="cerrarDia()" class="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg font-semibold mb-4">Cerrar Día y Guardar</button>
-                <h4 class="text-sm font-semibold text-slate-500 mb-2">Ventas de Hoy</h4>
                 <ul id="listaVentasHoy" class="max-h-60 overflow-y-auto custom-scrollbar space-y-2 mb-4 text-sm"></ul>
                 <h4 class="text-sm font-semibold text-slate-500 mb-2">Historial Cierres</h4>
-                <ul id="listaCierres" class="max-h-40 overflow-y-auto custom-scrollbar space-y-2 text-xs"></ul>
+                <ul id="listaCierres" class="max-h-60 overflow-y-auto custom-scrollbar space-y-2 text-xs"></ul>
             </div>
         </div>
     </div>
@@ -121,21 +105,25 @@
         const db = firebase.database();
         let inventario = [], ventasHoy = [], historial = [], carrito = [];
 
-        // --- Carga de datos ---
-        db.ref('almacen').on('value', (s) => { 
-            const data = s.val(); 
-            inventario = data ? (Array.isArray(data) ? data : Object.values(data)) : []; 
-            renderizar(); 
-        });
+        function ajustarStock(productos, esSuma) {
+            productos.forEach(p => {
+                const item = inventario[p.index];
+                if(item) {
+                    item.stock = parseInt(item.stock) + (esSuma ? parseInt(p.cant) : -parseInt(p.cant));
+                }
+            });
+            db.ref('almacen').set(inventario);
+        }
+
+        db.ref('almacen').on('value', (s) => { inventario = s.val() || []; renderizar(); });
         db.ref('ventasHoy').on('value', (s) => { 
             const data = s.val();
-            ventasHoy = data ? (Array.isArray(data) ? data : Object.values(data)) : []; 
+            ventasHoy = data ? Object.values(data) : []; 
             actualizarBalance(); 
         });
         db.ref('historial').on('value', (s) => { 
             const data = s.val();
-            console.log("Historial recibido:", data);
-            historial = data ? (Array.isArray(data) ? data : Object.values(data)) : []; 
+            historial = data ? Object.values(data) : []; 
             actualizarBalance(); 
         });
 
@@ -147,14 +135,12 @@
             setTimeout(() => t.classList.add('hidden'), 3000);
         }
 
-        // --- Edición de productos ---
         function editarProducto(i) {
             const p = inventario[i];
             const nuevoNombre = prompt("Nombre:", p.nombre);
             const nuevoCosto = prompt("Costo:", p.costo);
             const nuevoStock = prompt("Stock:", p.stock);
             const nuevoPorc = prompt("% Ganancia:", p.porcentaje);
-            
             if(nuevoNombre !== null) {
                 inventario[i] = { ...p, nombre: nuevoNombre, costo: parseFloat(nuevoCosto), stock: parseInt(nuevoStock), porcentaje: parseFloat(nuevoPorc) };
                 db.ref('almacen').set(inventario);
@@ -167,25 +153,17 @@
             inventario.forEach((item, i) => {
                 tbody.innerHTML += `
                     <tr class="hover:bg-slate-50">
-                        <td class="p-4 font-medium">${item.nombre}</td>
+                        <td class="p-4">${item.nombre}</td>
                         <td class="p-4">$${parseFloat(item.costo).toFixed(2)}</td>
                         <td class="p-4">${item.porcentaje}%</td>
-                        <td class="p-4">${item.stock}</td>
+                        <td class="p-4 font-bold ${item.stock < 5 ? 'text-red-500' : 'text-slate-700'}">${item.stock}</td>
                         <td class="p-4 flex gap-2">
                             <input type="number" id="cant-${i}" value="1" class="w-12 p-1 border rounded text-center text-xs">
                             <button onclick="agregarAlCarrito(${i})" class="bg-blue-500 text-white px-2 py-1 rounded text-xs">+</button>
                             <button onclick="editarProducto(${i})" class="bg-slate-200 px-2 py-1 rounded text-xs">✏️</button>
-                            <button onclick="eliminarProducto(${i})" class="text-red-400">🗑️</button>
                         </td>
                     </tr>`;
             });
-        }
-
-        function eliminarProducto(i) {
-            if(confirm('¿Eliminar este producto?')) {
-                inventario.splice(i, 1);
-                db.ref('almacen').set(inventario);
-            }
         }
 
         function agregar() {
@@ -202,6 +180,7 @@
         function agregarAlCarrito(i) {
             const cant = parseInt(document.getElementById(`cant-${i}`).value);
             const prod = inventario[i];
+            if(cant > prod.stock) return notify("Stock insuficiente", "bg-red-500");
             const precioVenta = (parseFloat(prod.costo) * (1 + parseFloat(prod.porcentaje) / 100));
             carrito.push({ index: i, nombre: prod.nombre, cant, total: precioVenta * cant, ganancia: (precioVenta - parseFloat(prod.costo)) * cant });
             actualizarCarrito();
@@ -222,80 +201,75 @@
             if (carrito.length === 0) return;
             let totalVenta = 0, totalGanancia = 0;
             let desc = carrito.map(item => `${item.cant}x ${item.nombre}`).join(', ');
+            ajustarStock(carrito.map(c => ({index: c.index, cant: c.cant})), false);
             carrito.forEach(item => {
-                inventario[item.index].stock -= item.cant;
                 totalVenta += item.total;
                 totalGanancia += item.ganancia;
             });
-            ventasHoy.push({ total: totalVenta, ganancia: totalGanancia, timestamp: Date.now(), descripcion: desc });
-            db.ref('almacen').set(inventario);
+            const nuevaVenta = { total: totalVenta, ganancia: totalGanancia, timestamp: Date.now(), descripcion: desc, items: carrito.map(c => ({ index: c.index, cant: c.cant })) };
+            ventasHoy.push(nuevaVenta);
             db.ref('ventasHoy').set(ventasHoy);
             carrito = [];
             actualizarCarrito();
             notify("Venta registrada", "bg-emerald-600");
         }
 
-        function cerrarDia() {
-            if (ventasHoy.length === 0) return notify("No hay ventas", "bg-red-500");
-            let tTotal = 0, tGanancia = 0;
-            ventasHoy.forEach(v => { tTotal += v.total; tGanancia += v.ganancia; });
-            historial.push({ fecha: new Date().toLocaleDateString(), total: tTotal, ganancia: tGanancia });
-            db.ref('historial').set(historial);
-            db.ref('ventasHoy').set(null);
-            notify("Día cerrado", "bg-blue-600");
-        }
-
-        function editarVentaHoy(i) {
+        function eliminarVentaHoy(i) {
             const v = ventasHoy[i];
-            const nuevaDesc = prompt("Productos (ej: 2x Coca, 1x Pan):", v.descripcion);
-            if(nuevaDesc) {
-                // Simplificación: al editar, permitimos modificar el total manualmente para evitar problemas de cálculo complejo
-                const nuevoTotal = parseFloat(prompt("Nuevo Total:", v.total));
-                const nuevaGan = parseFloat(prompt("Nueva Ganancia:", v.ganancia));
-                ventasHoy[i] = { ...v, descripcion: nuevaDesc, total: nuevoTotal, ganancia: nuevaGan };
+            if(confirm('¿Eliminar venta? Se devolverá el stock.')) {
+                ajustarStock(v.items, true);
+                ventasHoy.splice(i, 1);
                 db.ref('ventasHoy').set(ventasHoy);
             }
         }
 
-        function eliminarVentaHoy(i) {
-            ventasHoy.splice(i, 1);
-            db.ref('ventasHoy').set(ventasHoy);
+        function cerrarDia() {
+            if (ventasHoy.length === 0) return notify("No hay ventas", "bg-red-500");
+            let tTotal = 0, tGanancia = 0, resumenProd = {};
+            ventasHoy.forEach(v => { 
+                tTotal += v.total; 
+                tGanancia += v.ganancia; 
+                v.items.forEach(it => {
+                    const nombre = inventario[it.index]?.nombre || "Desconocido";
+                    resumenProd[nombre] = (resumenProd[nombre] || 0) + it.cant;
+                });
+            });
+            historial.push({ fecha: new Date().toLocaleDateString(), total: tTotal, ganancia: tGanancia, productosVendidos: resumenProd });
+            db.ref('historial').set(historial);
+            db.ref('ventasHoy').set(null);
+            notify("Día cerrado", "bg-blue-600");
         }
 
         function actualizarBalance() {
             let tVenta = 0, tGanancia = 0, tVentasMes = 0, tGananciaMes = 0;
             (ventasHoy || []).forEach(v => { tVenta += v.total; tGanancia += v.ganancia; });
             (historial || []).forEach(h => { tVentasMes += h.total; tGananciaMes += h.ganancia; });
+            
             document.getElementById('recaudadoHoy').innerText = `$${tVenta.toFixed(2)}`;
             document.getElementById('gananciaHoy').innerText = `$${tGanancia.toFixed(2)}`;
             document.getElementById('totalMes').innerText = `$${tVentasMes.toFixed(2)}`;
             document.getElementById('gananciaMes').innerText = `$${tGananciaMes.toFixed(2)}`;
             
-            // Render ventas hoy
             const lVentas = document.getElementById('listaVentasHoy');
             lVentas.innerHTML = (ventasHoy || []).map((v, i) => `
                 <li class="bg-white p-2 rounded border border-slate-100">
                     <div class="flex justify-between text-xs font-bold text-blue-600">
                         <span>$${v.total.toFixed(2)}</span>
-                        <div class="flex gap-2">
-                            <button onclick="editarVentaHoy(${i})" class="text-blue-500 underline">Editar</button>
-                            <button onclick="eliminarVentaHoy(${i})" class="text-red-500 underline">X</button>
-                        </div>
+                        <button onclick="eliminarVentaHoy(${i})" class="text-red-500 underline">Eliminar</button>
                     </div>
                     <p class="text-[10px] text-slate-500">${v.descripcion}</p>
                 </li>`).join('');
 
-            // Render Historial
             const lHist = document.getElementById('listaCierres');
-            if (historial && historial.length > 0) {
-                lHist.innerHTML = historial.map((h, i) => `
-                    <li class="p-2 bg-slate-50 rounded border flex justify-between items-center text-xs">
-                        <span>${h.fecha || 'Sin fecha'}: $${(h.total || 0).toFixed(2)} (G: $${(h.ganancia || 0).toFixed(2)})</span>
-                        <button onclick="if(confirm('¿Borrar este cierre?')) {historial.splice(${i},1);db.ref('historial').set(historial)}" class="text-red-500 font-bold">X</button>
-                    </li>`).join('');
-            } else {
-                lHist.innerHTML = '<li class="text-slate-400 italic text-center p-2 text-xs">Sin cierres aún</li>';
-            }
+            lHist.innerHTML = (historial || []).length > 0 
+                ? historial.map((h, i) => {
+                    const detalle = Object.entries(h.productosVendidos || {}).map(([p, c]) => `<span class="bg-slate-100 px-1 rounded mr-1">${p} x${c}</span>`).join('');
+                    return `<li class="p-2 bg-slate-50 rounded border mb-2">
+                                <div class="font-bold flex justify-between"><span>${h.fecha}</span> <span>$${h.total.toFixed(2)}</span></div>
+                                <div class="mt-1 flex flex-wrap gap-1">${detalle}</div>
+                            </li>`;
+                }).join('')
+                : '<li class="text-slate-400 italic text-center p-2 text-xs">Sin cierres aún</li>';
         }
     </script>
 </body>
