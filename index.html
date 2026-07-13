@@ -1,174 +1,751 @@
 <!DOCTYPE html>
+
 <html lang="es">
+
 <head>
+
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>Sistema de Gestión Completo</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+
     <style>
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 4px; }
+
+        body { 
+
+            font-family: sans-serif; 
+
+            padding: 20px; 
+
+            background: linear-gradient(rgba(244, 244, 249, 0.85), rgba(244, 244, 249, 0.85)), 
+
+                        url('https://images.unsplash.com/photo-1578916171728-46686eac8d58?q=80&w=1920&auto=format&fit=crop') no-repeat center center fixed; 
+
+            background-size: cover;
+
+        }
+
+        .formulario { background: rgba(255, 255, 255, 0.95); padding: 15px; border-radius: 8px; border: 1px solid #ccc; margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+
+        table { width: 100%; border-collapse: collapse; background: rgba(255, 255, 255, 0.95); margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-radius: 8px; overflow: hidden; }
+
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
+
+        th { background-color: #f8f9fa; }
+
+        .panel { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 20px; }
+
+        .seccion { flex: 1; background: rgba(255, 255, 255, 0.95); padding: 20px; border-radius: 8px; border: 1px solid #ddd; min-width: 300px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+
+        
+
+        h2 { color: #333; text-shadow: 1px 1px 2px rgba(255,255,255,0.8); }
+
+        button { padding: 8px 15px; cursor: pointer; color: white; border: none; border-radius: 4px; margin: 2px; transition: opacity 0.2s; }
+
+        button:hover { opacity: 0.9; }
+
+        .btn-add { background-color: #4CAF50; }
+
+        .btn-confirm { background-color: #FF9800; }
+
+        .btn-cerrar { background-color: #d32f2f; }
+
+        .btn-edit { background-color: #2196F3; }
+
+        .btn-remove { background-color: #f44336; }
+
+        input { padding: 6px; border: 1px solid #ccc; border-radius: 4px; background: white; }
+
+        .lista-scroll { max-height: 150px; overflow-y: auto; background: rgba(250, 250, 250, 0.9); padding: 10px; border-radius: 4px; border: 1px solid #eee; list-style: none; }
+
+        .lista-scroll li { margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #ddd; padding-bottom: 5px; }
+
+        .detalles-venta { font-size: 11px; color: #666; display: block; font-style: italic; }
+
     </style>
+
+
+
+    <!-- CONEXIÓN COMPATIBLE CON FIREBASE -->
+
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+
 </head>
-<body class="bg-slate-50 min-h-screen p-4 md:p-8">
 
-    <div id="toast" class="fixed top-5 right-5 z-50 hidden p-4 rounded-lg shadow-lg text-white font-medium"></div>
+<body>
 
-    <div class="max-w-6xl mx-auto">
-        <header class="mb-8">
-            <h1 class="text-3xl font-bold text-slate-800">Almacén</h1>
-        </header>
 
-        <!-- Inventory Input -->
-        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-8 grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
-            <div class="md:col-span-2">
-                <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Nombre</label>
-                <input type="text" id="prod" class="p-2 border rounded-lg w-full">
-            </div>
-            <div>
-                <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Costo</label>
-                <input type="number" id="costo" class="p-2 border rounded-lg w-full">
-            </div>
-            <div>
-                <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Stock</label>
-                <input type="number" id="stock" class="p-2 border rounded-lg w-full">
-            </div>
-            <div>
-                <label class="block text-xs font-bold uppercase text-slate-500 mb-1">% Ganancia</label>
-                <input type="number" id="porcentaje" value="30" class="p-2 border rounded-lg w-full">
-            </div>
-            <button onclick="agregar()" class="bg-emerald-600 text-white font-bold py-2 rounded-lg">Agregar</button>
-        </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <!-- Tabla Inventario -->
-            <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border p-6">
-                <h2 class="font-bold text-lg mb-4">Inventario</h2>
-                <table class="w-full text-left text-sm">
-                    <thead><tr class="text-slate-500 uppercase text-xs"><th>Producto</th><th>Venta</th><th>Stock</th><th>Acciones</th></tr></thead>
-                    <tbody id="cuerpoTabla"></tbody>
-                </table>
-            </div>
+    <h2>Gestión de Almacén (Conectado)</h2>
 
-            <!-- Carrito y Control -->
-            <div class="space-y-8">
-                <div class="bg-white p-6 rounded-xl shadow-sm border">
-                    <h3 class="font-bold mb-4">Carrito</h3>
-                    <ul id="listaCarrito" class="mb-4 space-y-2"></ul>
-                    <p class="font-bold text-xl mb-4">Total: $<span id="totalCarrito">0.00</span></p>
-                    <button onclick="confirmarVenta()" class="w-full bg-orange-500 text-white py-2 rounded-lg font-bold">Confirmar Venta</button>
-                </div>
-                <div class="bg-white p-6 rounded-xl shadow-sm border">
-                    <h3 class="font-bold mb-4">Control Diario</h3>
-                    <button onclick="cerrarDia()" class="w-full bg-red-600 text-white py-2 rounded-lg font-bold mb-4">Cerrar Día</button>
-                    <ul id="listaCierres" class="max-h-40 overflow-y-auto custom-scrollbar"></ul>
-                </div>
-            </div>
-        </div>
+    
+
+    <div class="formulario">
+
+        <input type="text" id="busqueda" placeholder="Buscar producto..." onkeyup="renderizar()">
+
     </div>
 
+    
+
+    <div class="formulario">
+
+        <input type="text" id="prod" placeholder="Nombre">
+
+        <input type="number" id="costo" placeholder="Costo ($)" style="width: 90px;">
+
+        <input type="number" id="stock" placeholder="Stock" style="width: 70px;">
+
+        <input type="number" id="porcentaje" value="30" style="width: 60px;" placeholder="%">
+
+        <input type="file" id="fotoInput" accept="image/*">
+
+        <button class="btn-add" onclick="agregar()">Agregar Producto</button>
+
+    </div>
+
+
+
+    <table id="tablaInventario">
+
+        <thead>
+
+            <tr>
+
+                <th>Foto</th>
+
+                <th>Producto</th>
+
+                <th>Costo</th>
+
+                <th>%</th>
+
+                <th>Precio Venta</th>
+
+                <th>Stock</th>
+
+                <th>Acciones</th>
+
+            </tr>
+
+        </thead>
+
+        <tbody id="cuerpoTabla"></tbody>
+
+    </table>
+
+
+
+    <div class="panel">
+
+        <div class="seccion">
+
+            <h3>Carrito Actual</h3>
+
+            <ul id="listaCarrito" style="list-style: none; padding-left: 0;"></ul>
+
+            <p><strong>Total: $<span id="totalCarrito">0.00</span></strong></p>
+
+            <button class="btn-confirm" onclick="confirmarVenta()">Confirmar Venta</button>
+
+        </div>
+
+        
+
+        <div class="seccion">
+
+            <h3>Balance</h3>
+
+            <p>Hoy: <strong id="recaudadoHoy">$0.00</strong></p>
+
+            
+
+            <h4>Ventas de Hoy (Desglose):</h4>
+
+            <ul id="listaVentasHoy" class="lista-scroll"></ul>
+
+            <hr>
+
+            
+
+            <p>Mes: <strong id="totalMes">$0.00</strong></p>
+
+            <button class="btn-cerrar" onclick="cerrarDia()">Cerrar Día</button>
+
+            <button style="background:#555" onclick="limpiarHistorial()">Borrar Historial</button>
+
+            
+
+            <h4>Historial Cierres</h4>
+
+            <ul id="listaCierres" class="lista-scroll"></ul>
+
+        </div>
+
+    </div>
+
+
+
     <script>
+
+        // CONFIGURACIÓN DE FIREBASE LAURA
+
         const firebaseConfig = {
+
             apiKey: "AIzaSyA2k6dGz5LHnyW_RnzZNQQbdsYsOtKGBFM",
+
+            authDomain: "mi-almacen-be016.firebaseapp.com",
+
             databaseURL: "https://mi-almacen-be016-default-rtdb.firebaseio.com",
-            projectId: "mi-almacen-be016"
+
+            projectId: "mi-almacen-be016",
+
+            storageBucket: "mi-almacen-be016.firebasestorage.app",
+
+            messagingSenderId: "180812846512",
+
+            appId: "1:180812846512:web:86e11643678392a9be7275",
+
+            measurementId: "G-0M16DBWTSD"
+
         };
+
+
+
+        // Inicializar Firebase
+
         firebase.initializeApp(firebaseConfig);
+
         const db = firebase.database();
 
-        let inventario = [], carrito = [], historial = [];
 
-        db.ref('almacen').on('value', (s) => { inventario = s.val() || []; renderizar(); });
-        db.ref('historial').on('value', (s) => { historial = s.val() || []; renderizarHistorial(); });
 
-        function notify(msg, color) {
-            const t = document.getElementById('toast');
-            t.innerText = msg; t.className = `fixed top-5 right-5 p-4 rounded-lg text-white ${color}`;
-            t.classList.remove('hidden'); setTimeout(() => t.classList.add('hidden'), 2000);
-        }
+        let inventario = [];
+
+        let ventasHoy = [];
+
+        let historial = [];
+
+        let carrito = [];
+
+
+
+        // Escuchar base de datos en tiempo real (Inventario)
+
+        db.ref('almacen').on('value', (snapshot) => {
+
+            inventario = snapshot.val() || [];
+
+            renderizar();
+
+        });
+
+
+
+        // Escuchar base de datos en tiempo real (Ventas de Hoy)
+
+        db.ref('ventasHoy').on('value', (snapshot) => {
+
+            let data = snapshot.val() || [];
+
+            ventasHoy = data.map(v => typeof v === 'number' ? { total: v, descripcion: "Venta manual" } : v);
+
+            actualizarBalance();
+
+        });
+
+
+
+        // Escuchar base de datos en tiempo real (Historial de Cierres)
+
+        db.ref('historial').on('value', (snapshot) => {
+
+            let data = snapshot.val() || [];
+
+            historial = data.map(h => typeof h.descripcion === 'undefined' ? { ...h, descripcion: "Sin descripción guardada" } : h);
+
+            actualizarBalance();
+
+        });
+
+
 
         function renderizar() {
-            const tbody = document.getElementById('cuerpoTabla');
-            tbody.innerHTML = inventario.map((item, i) => `
-                <tr class="border-t">
-                    <td class="p-3">${item.nombre}</td>
-                    <td class="p-3 font-bold">$${(item.costo * (1 + item.porcentaje/100)).toFixed(2)}</td>
-                    <td class="p-3">${item.stock}</td>
-                    <td class="p-3">
-                        <button onclick="agregarAlCarrito(${i})" class="text-emerald-600 mr-2">+</button>
-                        <button onclick="editarProducto(${i})" class="text-blue-500 mr-2">✏️</button>
-                        <button onclick="eliminarProducto(${i})" class="text-red-500">🗑️</button>
-                    </td>
-                </tr>`).join('');
+
+            let tbody = document.getElementById('cuerpoTabla');
+
+            let busqueda = document.getElementById('busqueda').value.toLowerCase();
+
+            tbody.innerHTML = '';
+
+            
+
+            if (inventario.length === 0) {
+
+                tbody.innerHTML = '<tr><td colspan="7" style="color: #888; padding: 20px;">No hay productos cargados en el inventario.</td></tr>';
+
+            } else {
+
+                inventario.forEach((item, index) => {
+
+                    if (item && item.nombre && item.nombre.toLowerCase().includes(busqueda)) {
+
+                        let precioVenta = (parseFloat(item.costo) * (1 + parseFloat(item.porcentaje) / 100)).toFixed(2);
+
+                        let fotoHTML = item.foto ? `<img src="${item.foto}" width="50" style="border-radius:4px;">` : "Sin foto";
+
+
+
+                        tbody.innerHTML += `<tr>
+
+                            <td>${fotoHTML}</td>
+
+                            <td>${item.nombre}</td>
+
+                            <td>$${parseFloat(item.costo).toFixed(2)}</td>
+
+                            <td>${item.porcentaje}%</td>
+
+                            <td><strong>$${precioVenta}</strong></td>
+
+                            <td>${item.stock}</td>
+
+                            <td>
+
+                                <button class="btn-edit" onclick="editar(${index})">Editar</button>
+
+                                <button class="btn-remove" onclick="eliminarProducto(${index})">X</button>
+
+                                <input type="number" id="cant-${index}" value="1" min="1" style="width: 40px;">
+
+                                <button class="btn-add" onclick="agregarAlCarrito(${index})">Agregar</button>
+
+                            </td>
+
+                        </tr>`;
+
+                    }
+
+                });
+
+            }
+
         }
+
+
 
         function agregar() {
-            const nombre = document.getElementById('prod').value;
-            const costo = parseFloat(document.getElementById('costo').value);
-            const stock = parseInt(document.getElementById('stock').value);
-            const porcentaje = parseFloat(document.getElementById('porcentaje').value);
-            if (!nombre || isNaN(costo)) return;
-            inventario.push({ nombre, costo, stock, porcentaje });
-            db.ref('almacen').set(inventario);
-            notify("Producto agregado", "bg-emerald-600");
+
+            let nombre = document.getElementById('prod').value;
+
+            let costo = parseFloat(document.getElementById('costo').value);
+
+            let stock = parseInt(document.getElementById('stock').value);
+
+            let porcentaje = parseFloat(document.getElementById('porcentaje').value) || 0;
+
+            let fileInput = document.getElementById('fotoInput');
+
+
+
+            if (!nombre || isNaN(costo) || isNaN(stock)) return alert("Completa los campos básicos (Nombre, Costo y Stock)");
+
+
+
+            function guardarObjeto(fotoData) {
+
+                inventario.push({nombre, costo, stock, porcentaje, foto: fotoData});
+
+                db.ref('almacen').set(inventario);
+
+                document.getElementById('prod').value = '';
+
+                document.getElementById('costo').value = '';
+
+                document.getElementById('stock').value = '';
+
+                document.getElementById('porcentaje').value = '30';
+
+                document.getElementById('fotoInput').value = '';
+
+            }
+
+
+
+            if (fileInput.files && fileInput.files[0]) {
+
+                let reader = new FileReader();
+
+                reader.onload = function(e) { guardarObjeto(e.target.result); };
+
+                reader.readAsDataURL(fileInput.files[0]);
+
+            } else {
+
+                guardarObjeto(null);
+
+            }
+
         }
 
-        function agregarAlCarrito(i) {
-            const prod = inventario[i];
-            if (prod.stock <= 0) return notify("Sin stock", "bg-red-500");
-            const precio = prod.costo * (1 + prod.porcentaje/100);
-            carrito.push({ index: i, nombre: prod.nombre, precio: precio });
-            actualizarCarrito();
+
+
+        function eliminarProducto(index) {
+
+            if (confirm("¿Eliminar producto definitivamente?")) {
+
+                inventario.splice(index, 1);
+
+                db.ref('almacen').set(inventario);
+
+            }
+
         }
+
+
+
+        function editar(index) {
+
+            let nCosto = prompt("Nuevo Costo:", inventario[index].costo);
+
+            let nPorcentaje = prompt("Nuevo Porcentaje de ganancia (%):", inventario[index].porcentaje);
+
+            let nStock = prompt("Nuevo Stock:", inventario[index].stock);
+
+            
+
+            if (nCosto !== null && nPorcentaje !== null && nStock !== null) {
+
+                inventario[index].costo = parseFloat(nCosto) || 0;
+
+                inventario[index].porcentaje = parseFloat(nPorcentaje) || 0;
+
+                inventario[index].stock = parseInt(nStock) || 0;
+
+                db.ref('almacen').set(inventario);
+
+            }
+
+        }
+
+
+
+        function agregarAlCarrito(index) {
+
+            let cantInput = document.getElementById(`cant-${index}`);
+
+            let cant = parseInt(cantInput.value);
+
+            let prod = inventario[index];
+
+            let precioVenta = (parseFloat(prod.costo) * (1 + parseFloat(prod.porcentaje) / 100));
+
+            
+
+            if (isNaN(cant) || cant <= 0) return alert("Ingrese una cantidad válida");
+
+            let yaEnCarrito = carrito.filter(item => item.index === index).reduce((sum, item) => sum + item.cant, 0);
+
+
+
+            if ((cant + yaEnCarrito) <= prod.stock) {
+
+                carrito.push({ index, nombre: prod.nombre, cant, total: precioVenta * cant });
+
+                actualizarCarrito();
+
+                cantInput.value = 1;
+
+            } else { 
+
+                alert("Stock insuficiente en inventario."); 
+
+            }
+
+        }
+
+
 
         function actualizarCarrito() {
-            const list = document.getElementById('listaCarrito');
-            let total = 0;
-            list.innerHTML = carrito.map((item, i) => {
-                total += item.precio;
-                return `<li class="text-sm border-b">${item.nombre} - $${item.precio.toFixed(2)}</li>`;
-            }).join('');
-            document.getElementById('totalCarrito').innerText = total.toFixed(2);
+
+            let lista = document.getElementById('listaCarrito');
+
+            let suma = 0;
+
+            lista.innerHTML = "";
+
+            carrito.forEach((item, i) => {
+
+                lista.innerHTML += `<li style="margin-bottom: 5px;">${item.nombre} x${item.cant} ($${item.total.toFixed(2)}) 
+
+                                    <button class="btn-remove" style="padding:2px 6px; font-size:10px;" onclick="carrito.splice(${i},1);actualizarCarrito()">X</button></li>`;
+
+                suma += item.total;
+
+            });
+
+            document.getElementById('totalCarrito').innerText = suma.toFixed(2);
+
         }
+
+
 
         function confirmarVenta() {
-            if (carrito.length === 0) return;
-            carrito.forEach(c => inventario[c.index].stock--);
+
+            if (carrito.length === 0) return alert("El carrito está vacío");
+
+            
+
+            carrito.forEach(item => {
+
+                inventario[item.index].stock -= item.cant;
+
+            });
+
+            
+
+            let descripcionVenta = carrito.map(item => `${item.cant}x ${item.nombre}`).join(', ');
+
+            let total = carrito.reduce((sum, item) => sum + item.total, 0);
+
+            
+
+            ventasHoy.push({ total: total, descripcion: descripcionVenta });
+
+            
+
             db.ref('almacen').set(inventario);
+
+            db.ref('ventasHoy').set(ventasHoy);
+
+            
+
             carrito = [];
+
             actualizarCarrito();
-            notify("Venta registrada", "bg-emerald-600");
+
         }
+
+
 
         function cerrarDia() {
-            let total = prompt("Monto total de ventas del día:");
-            if (total) {
-                historial.push({ fecha: new Date().toLocaleDateString(), total: parseFloat(total) });
-                db.ref('historial').set(historial);
+
+            if (ventasHoy.length === 0) return alert("No hay ventas registradas el día de hoy.");
+
+            
+
+            let totalDia = ventasHoy.reduce((a, b) => a + (b.total || 0), 0);
+
+            let todoLoVendidoHoy = ventasHoy.map(v => v.descripcion).join(' | ');
+
+            
+
+            historial.push({ 
+
+                fecha: new Date().toLocaleDateString(), 
+
+                total: totalDia,
+
+                descripcion: todoLoVendidoHoy
+
+            });
+
+            
+
+            db.ref('historial').set(historial);
+
+            db.ref('ventasHoy').remove();
+
+            carrito = [];
+
+            actualizarCarrito();
+
+        }
+
+
+
+        function limpiarHistorial() {
+
+            if (confirm("¿Seguro que deseas borrar por completo el historial de cierres?")) {
+
+                db.ref('historial').remove();
+
             }
+
         }
 
-        function renderizarHistorial() {
-            document.getElementById('listaCierres').innerHTML = historial.map((h, i) => `
-                <li class="text-sm p-2 bg-slate-50 border-b flex justify-between">
-                    ${h.fecha}: $${h.total} 
-                    <button onclick="editarCierre(${i})" class="text-blue-500">✏️</button>
-                </li>`).join('');
+
+
+        function actualizarBalance() {
+
+            let totalHoy = ventasHoy.reduce((a, b) => a + (b.total || 0), 0);
+
+            let totalMes = historial.reduce((sum, item) => sum + (item.total || 0), 0);
+
+            
+
+            document.getElementById('recaudadoHoy').innerText = "$" + totalHoy.toFixed(2);
+
+            document.getElementById('totalMes').innerText = "$" + totalMes.toFixed(2);
+
+            
+
+            let listaVentas = document.getElementById('listaVentasHoy');
+
+            listaVentas.innerHTML = "";
+
+            if (ventasHoy.length === 0) {
+
+                listaVentas.innerHTML = "<li>Sin ventas aún</li>";
+
+            } else {
+
+                ventasHoy.forEach((venta, i) => {
+
+                    if (venta) {
+
+                        listaVentas.innerHTML += `<li>
+
+                            <div>
+
+                                <strong>Venta #${i + 1}: $${(venta.total || 0).toFixed(2)}</strong>
+
+                                <span class="detalles-venta">${venta.descripcion || 'Venta manual'}</span>
+
+                            </div>
+
+                            <div style="flex-shrink: 0;">
+
+                                <button class="btn-edit" style="padding:2px 5px; font-size:11px;" onclick="editarVentaHoy(${i})">✏️</button>
+
+                                <button class="btn-remove" style="padding:2px 5px; font-size:11px;" onclick="eliminarVentaHoy(${i})">X</button>
+
+                            </div>
+
+                        </li>`;
+
+                    }
+
+                });
+
+            }
+
+            
+
+            let listaCierres = document.getElementById('listaCierres');
+
+            listaCierres.innerHTML = "";
+
+            if (historial.length === 0) {
+
+                listaCierres.innerHTML = "<li>No hay cierres guardados</li>";
+
+            } else {
+
+                historial.forEach((c, i) => {
+
+                    if (c) {
+
+                        listaCierres.innerHTML += `<li>
+
+                            <div>
+
+                                <span><strong>${c.fecha}: $${(c.total || 0).toFixed(2)}</strong></span>
+
+                                <span class="detalles-venta" style="color:#2196F3;">Vendido: ${c.descripcion || 'Sin detalles'}</span>
+
+                            </div>
+
+                            <div>
+
+                                <button class="btn-edit" style="padding:2px 5px; font-size:11px;" onclick="editarCierre(${i})">Editar</button>
+
+                                <button class="btn-remove" style="padding:2px 5px; font-size:11px;" onclick="eliminarCierre(${i})">X</button>
+
+                            </div></li>`;
+
+                    }
+
+                });
+
+            }
+
         }
 
-        function editarProducto(i) {
-            const s = prompt("Nuevo stock:", inventario[i].stock);
-            if (s !== null) { inventario[i].stock = parseInt(s); db.ref('almacen').set(inventario); }
+
+
+        function editarVentaHoy(index) {
+
+            let nuevoMonto = prompt("Corregir monto de esta venta:", ventasHoy[index].total);
+
+            if (nuevoMonto !== null) {
+
+                let montoFloat = parseFloat(nuevoMonto);
+
+                if (!isNaN(montoFloat) && montoFloat >= 0) {
+
+                    ventasHoy[index].total = montoFloat;
+
+                    db.ref('ventasHoy').set(ventasHoy);
+
+                } else {
+
+                    alert("Por favor, ingrese un número válido.");
+
+                }
+
+            }
+
         }
 
-        function editarCierre(i) {
-            const t = prompt("Corregir total:", historial[i].total);
-            if (t !== null) { historial[i].total = parseFloat(t); db.ref('historial').set(historial); }
+
+
+        function eliminarVentaHoy(index) {
+
+            if (confirm("¿Eliminar esta venta del total de hoy?")) {
+
+                ventasHoy.splice(index, 1);
+
+                db.ref('ventasHoy').set(ventasHoy);
+
+            }
+
         }
 
-        function eliminarProducto(i) { inventario.splice(i, 1); db.ref('almacen').set(inventario); }
+
+
+        function editarCierre(index) {
+
+            let nuevoMonto = prompt("Corregir monto del cierre:", historial[index].total);
+
+            if (nuevoMonto !== null) {
+
+                historial[index].total = parseFloat(nuevoMonto) || 0;
+
+                db.ref('historial').set(historial);
+
+            }
+
+        }
+
+
+
+        function eliminarCierre(index) {
+
+            if (confirm("¿Eliminar este registro de cierre?")) {
+
+                historial.splice(index, 1);
+
+                db.ref('historial').set(historial);
+
+            }
+
+        }
+
     </script>
+
 </body>
+
 </html>
