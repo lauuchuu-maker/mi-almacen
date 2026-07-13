@@ -742,7 +742,16 @@
             }
 
         }
-
+        function calcularYMostrarGanancias() { 
+            
+    let totalHoy = ventasHoy.reduce((a, b) => a + (b.total || 0), 0);
+    
+            document.getElementById('recaudadoHoy').innerText = "$" + totalHoy.toFixed(2);
+ 
+    let totalMes = historial.reduce((sum, item) => sum + (item.total || 0), 0);
+    
+            document.getElementById('totalMes').innerText = "$" + totalMes.toFixed(2);
+}
     </script>
 
 </body>
