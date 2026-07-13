@@ -70,17 +70,14 @@
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-8">
             <div class="p-4 border-b border-slate-100 flex justify-between items-center">
                 <h2 class="font-bold text-slate-700">Inventario</h2>
-                <input type="text" id="busqueda" placeholder="Buscar producto..." onkeyup="renderizar()" class="p-2 border rounded-lg text-sm w-64">
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-left text-sm">
                     <thead class="bg-slate-50 text-slate-600 uppercase text-xs font-semibold">
                         <tr>
-                            <th class="p-4">Foto</th>
                             <th class="p-4">Producto</th>
                             <th class="p-4">Costo</th>
                             <th class="p-4">%</th>
-                            <th class="p-4">Venta</th>
                             <th class="p-4">Stock</th>
                             <th class="p-4">Acciones</th>
                         </tr>
@@ -124,7 +121,7 @@
         const db = firebase.database();
         let inventario = [], ventasHoy = [], historial = [], carrito = [];
 
-        // --- Carga de datos con limpieza de objetos a array ---
+        // --- Carga de datos ---
         db.ref('almacen').on('value', (s) => { 
             const data = s.val(); 
             inventario = data ? (Array.isArray(data) ? data : Object.values(data)) : []; 
@@ -137,8 +134,7 @@
         });
         db.ref('historial').on('value', (s) => { 
             const data = s.val();
-            // --- LOG DE DEBUG PARA EL USUARIO ---
-            console.log("Datos Historial recibidos desde Firebase:", data);
+            console.log("Historial recibido:", data);
             historial = data ? (Array.isArray(data) ? data : Object.values(data)) : []; 
             actualizarBalance(); 
         });
@@ -151,36 +147,17 @@
             setTimeout(() => t.classList.add('hidden'), 3000);
         }
 
-        // --- Lógica de Recálculo Automático ---
-        function recalcularVenta(descripcion) {
-            let total = 0, ganancia = 0;
-            const items = descripcion.split(', ');
-            items.forEach(item => {
-                const parts = item.split('x ');
-                if (parts.length === 2) {
-                    const cant = parseInt(parts[0]);
-                    const nombre = parts[1].trim();
-                    const prod = inventario.find(p => p.nombre.toLowerCase() === nombre.toLowerCase());
-                    if (prod) {
-                        const precioVenta = (parseFloat(prod.costo) * (1 + parseFloat(prod.porcentaje) / 100));
-                        total += (precioVenta * cant);
-                        ganancia += ((precioVenta - parseFloat(prod.costo)) * cant);
-                    }
-                }
-            });
-            return { total, ganancia };
-        }
-
-        function editarVentaHoy(i) {
-            let v = ventasHoy[i];
-            let nuevaDesc = prompt("Modifica los productos (ej: 2x Producto A, 1x Producto B):", v.descripcion || "");
-            if (nuevaDesc !== null) {
-                const nuevosValores = recalcularVenta(nuevaDesc);
-                ventasHoy[i].descripcion = nuevaDesc;
-                ventasHoy[i].total = nuevosValores.total;
-                ventasHoy[i].ganancia = nuevosValores.ganancia;
-                db.ref('ventasHoy').set(ventasHoy);
-                notify("Venta editada", "bg-blue-500");
+        // --- Edición de productos ---
+        function editarProducto(i) {
+            const p = inventario[i];
+            const nuevoNombre = prompt("Nombre:", p.nombre);
+            const nuevoCosto = prompt("Costo:", p.costo);
+            const nuevoStock = prompt("Stock:", p.stock);
+            const nuevoPorc = prompt("% Ganancia:", p.porcentaje);
+            
+            if(nuevoNombre !== null) {
+                inventario[i] = { ...p, nombre: nuevoNombre, costo: parseFloat(nuevoCosto), stock: parseInt(nuevoStock), porcentaje: parseFloat(nuevoPorc) };
+                db.ref('almacen').set(inventario);
             }
         }
 
@@ -188,18 +165,16 @@
             const tbody = document.getElementById('cuerpoTabla');
             tbody.innerHTML = '';
             inventario.forEach((item, i) => {
-                const precio = (parseFloat(item.costo) * (1 + parseFloat(item.porcentaje) / 100));
                 tbody.innerHTML += `
                     <tr class="hover:bg-slate-50">
-                        <td class="p-4">${item.foto ? `<img src="${item.foto}" class="w-10 h-10 object-cover rounded">` : "No"}</td>
                         <td class="p-4 font-medium">${item.nombre}</td>
                         <td class="p-4">$${parseFloat(item.costo).toFixed(2)}</td>
                         <td class="p-4">${item.porcentaje}%</td>
-                        <td class="p-4 font-bold text-emerald-700">$${precio.toFixed(2)}</td>
                         <td class="p-4">${item.stock}</td>
                         <td class="p-4 flex gap-2">
                             <input type="number" id="cant-${i}" value="1" class="w-12 p-1 border rounded text-center text-xs">
                             <button onclick="agregarAlCarrito(${i})" class="bg-blue-500 text-white px-2 py-1 rounded text-xs">+</button>
+                            <button onclick="editarProducto(${i})" class="bg-slate-200 px-2 py-1 rounded text-xs">✏️</button>
                             <button onclick="eliminarProducto(${i})" class="text-red-400">🗑️</button>
                         </td>
                     </tr>`;
@@ -207,7 +182,7 @@
         }
 
         function eliminarProducto(i) {
-            if(confirm('¿Eliminar este producto del inventario?')) {
+            if(confirm('¿Eliminar este producto?')) {
                 inventario.splice(i, 1);
                 db.ref('almacen').set(inventario);
             }
@@ -218,26 +193,17 @@
             const costo = parseFloat(document.getElementById('costo').value);
             const stock = parseInt(document.getElementById('stock').value);
             const porcentaje = parseFloat(document.getElementById('porcentaje').value);
-            const fotoInput = document.getElementById('fotoInput');
             if (!nombre || isNaN(costo) || isNaN(stock)) return notify("Completa todos los campos", "bg-red-500");
-            function guardar(foto) {
-                inventario.push({ nombre, costo, stock, porcentaje, foto });
-                db.ref('almacen').set(inventario);
-                notify("Producto agregado", "bg-emerald-500");
-            }
-            if (fotoInput.files[0]) {
-                const reader = new FileReader();
-                reader.onload = (e) => guardar(e.target.result);
-                reader.readAsDataURL(fotoInput.files[0]);
-            } else guardar(null);
+            inventario.push({ nombre, costo, stock, porcentaje });
+            db.ref('almacen').set(inventario);
+            notify("Producto agregado", "bg-emerald-500");
         }
 
         function agregarAlCarrito(i) {
             const cant = parseInt(document.getElementById(`cant-${i}`).value);
             const prod = inventario[i];
             const precioVenta = (parseFloat(prod.costo) * (1 + parseFloat(prod.porcentaje) / 100));
-            const gananciaUnit = precioVenta - parseFloat(prod.costo);
-            carrito.push({ index: i, nombre: prod.nombre, cant, total: precioVenta * cant, ganancia: gananciaUnit * cant });
+            carrito.push({ index: i, nombre: prod.nombre, cant, total: precioVenta * cant, ganancia: (precioVenta - parseFloat(prod.costo)) * cant });
             actualizarCarrito();
         }
 
@@ -279,6 +245,18 @@
             notify("Día cerrado", "bg-blue-600");
         }
 
+        function editarVentaHoy(i) {
+            const v = ventasHoy[i];
+            const nuevaDesc = prompt("Productos (ej: 2x Coca, 1x Pan):", v.descripcion);
+            if(nuevaDesc) {
+                // Simplificación: al editar, permitimos modificar el total manualmente para evitar problemas de cálculo complejo
+                const nuevoTotal = parseFloat(prompt("Nuevo Total:", v.total));
+                const nuevaGan = parseFloat(prompt("Nueva Ganancia:", v.ganancia));
+                ventasHoy[i] = { ...v, descripcion: nuevaDesc, total: nuevoTotal, ganancia: nuevaGan };
+                db.ref('ventasHoy').set(ventasHoy);
+            }
+        }
+
         function eliminarVentaHoy(i) {
             ventasHoy.splice(i, 1);
             db.ref('ventasHoy').set(ventasHoy);
@@ -293,11 +271,12 @@
             document.getElementById('totalMes').innerText = `$${tVentasMes.toFixed(2)}`;
             document.getElementById('gananciaMes').innerText = `$${tGananciaMes.toFixed(2)}`;
             
+            // Render ventas hoy
             const lVentas = document.getElementById('listaVentasHoy');
             lVentas.innerHTML = (ventasHoy || []).map((v, i) => `
                 <li class="bg-white p-2 rounded border border-slate-100">
-                    <div class="flex justify-between text-xs">
-                        <span class="font-bold text-blue-600">$${v.total.toFixed(2)}</span>
+                    <div class="flex justify-between text-xs font-bold text-blue-600">
+                        <span>$${v.total.toFixed(2)}</span>
                         <div class="flex gap-2">
                             <button onclick="editarVentaHoy(${i})" class="text-blue-500 underline">Editar</button>
                             <button onclick="eliminarVentaHoy(${i})" class="text-red-500 underline">X</button>
@@ -306,13 +285,13 @@
                     <p class="text-[10px] text-slate-500">${v.descripcion}</p>
                 </li>`).join('');
 
+            // Render Historial
             const lHist = document.getElementById('listaCierres');
-            // Verificación extra para asegurar que se muestre el historial
-            if (historial && Array.isArray(historial) && historial.length > 0) {
+            if (historial && historial.length > 0) {
                 lHist.innerHTML = historial.map((h, i) => `
                     <li class="p-2 bg-slate-50 rounded border flex justify-between items-center text-xs">
-                        <span>${h.fecha}: $${h.total.toFixed(2)} (G: $${h.ganancia.toFixed(2)})</span>
-                        <button onclick="if(confirm('¿Borrar este cierre?')) {historial.splice(${i},1);db.ref('historial').set(historial)}" class="text-red-500 font-bold px-2">X</button>
+                        <span>${h.fecha || 'Sin fecha'}: $${(h.total || 0).toFixed(2)} (G: $${(h.ganancia || 0).toFixed(2)})</span>
+                        <button onclick="if(confirm('¿Borrar este cierre?')) {historial.splice(${i},1);db.ref('historial').set(historial)}" class="text-red-500 font-bold">X</button>
                     </li>`).join('');
             } else {
                 lHist.innerHTML = '<li class="text-slate-400 italic text-center p-2 text-xs">Sin cierres aún</li>';
