@@ -1,206 +1,22 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Gestión Completo</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
-    <style>
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 4px; }
-    </style>
-</head>
-<body class="bg-slate-50 min-h-screen p-4 md:p-8">
+// Asegúrate de que esta función esté tal cual en tu script
+function renderizarHistorial() {
+    const listCierres = document.getElementById('listaCierres');
+    if (!listCierres) return;
+    
+    listCierres.innerHTML = historial.map((h, i) => `
+        <li class="text-sm p-2 bg-slate-50 border-b flex justify-between items-center">
+            <span>${h.fecha}: <strong>$${parseFloat(h.total).toFixed(2)}</strong></span>
+            <button onclick="editarCierre(${i})" class="text-blue-500 hover:text-blue-700 font-bold px-2">✏️</button>
+        </li>
+    `).join('');
+}
 
-    <div id="toast" class="fixed top-5 right-5 z-50 hidden p-4 rounded-lg shadow-lg text-white font-medium"></div>
-
-    <div class="max-w-6xl mx-auto">
-        <header class="mb-8">
-            <h1 class="text-3xl font-bold text-slate-800">Almacén</h1>
-            <p class="text-slate-600">Sistema de gestión integral</p>
-        </header>
-
-        <!-- Metrics Grid -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                <p class="text-xs text-slate-500 font-bold uppercase">Ventas Hoy</p>
-                <p id="recaudadoHoy" class="text-2xl font-bold text-blue-600">$0.00</p>
-            </div>
-            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                <p class="text-xs text-emerald-600 font-bold uppercase">Ganancia Hoy</p>
-                <p id="gananciaHoy" class="text-2xl font-bold text-emerald-600">$0.00</p>
-            </div>
-            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                <p class="text-xs text-purple-600 font-bold uppercase">Ventas Mes</p>
-                <p id="totalMes" class="text-2xl font-bold text-purple-600">$0.00</p>
-            </div>
-            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                <p class="text-xs text-orange-600 font-bold uppercase">Ganancia Mes</p>
-                <p id="gananciaMes" class="text-2xl font-bold text-orange-600">$0.00</p>
-            </div>
-        </div>
-
-        <!-- Inventory Input -->
-        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4 items-end">
-            <div class="lg:col-span-2">
-                <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Nombre</label>
-                <input type="text" id="prod" placeholder="Producto" class="p-2 border rounded-lg w-full">
-            </div>
-            <div>
-                <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Costo ($)</label>
-                <input type="number" id="costo" placeholder="0.00" class="p-2 border rounded-lg w-full">
-            </div>
-            <div>
-                <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Stock</label>
-                <input type="number" id="stock" placeholder="0" class="p-2 border rounded-lg w-full">
-            </div>
-            <div>
-                <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">% Ganancia</label>
-                <input type="number" id="porcentaje" value="30" class="p-2 border rounded-lg w-full">
-            </div>
-            <div class="lg:col-span-2">
-                <button onclick="agregar()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-lg transition">Agregar Producto</button>
-            </div>
-        </div>
-
-        <!-- Inventory Table -->
-        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-8">
-            <div class="p-4 border-b border-slate-100 flex justify-between items-center">
-                <h2 class="font-bold text-slate-700">Inventario</h2>
-                <input type="text" id="busqueda" placeholder="Buscar..." onkeyup="renderizar()" class="p-2 border rounded-lg text-sm w-64">
-            </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm">
-                    <thead class="bg-slate-50 text-slate-600 uppercase text-xs font-semibold">
-                        <tr>
-                            <th class="p-4">Producto</th>
-                            <th class="p-4">Costo</th>
-                            <th class="p-4">Stock</th>
-                            <th class="p-4">%</th>
-                            <th class="p-4">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="cuerpoTabla" class="divide-y divide-slate-100"></tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Cart and History -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                <h3 class="font-bold text-slate-700 mb-4">Carrito</h3>
-                <ul id="listaCarrito" class="space-y-2 mb-4"></ul>
-                <div class="flex justify-between items-center border-t pt-4">
-                    <p class="font-bold text-lg">Total: $<span id="totalCarrito">0.00</span></p>
-                    <button onclick="confirmarVenta()" class="bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2 px-6 rounded-lg">Confirmar</button>
-                </div>
-            </div>
-            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                <h3 class="font-bold text-slate-700 mb-4">Control Diario</h3>
-                <button onclick="cerrarDia()" class="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg font-semibold mb-4">Cerrar Día</button>
-                <ul id="listaCierres" class="max-h-60 overflow-y-auto custom-scrollbar space-y-2"></ul>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        const firebaseConfig = {
-            apiKey: "AIzaSyA2k6dGz5LHnyW_RnzZNQQbdsYsOtKGBFM",
-            authDomain: "mi-almacen-be016.firebaseapp.com",
-            databaseURL: "https://mi-almacen-be016-default-rtdb.firebaseio.com",
-            projectId: "mi-almacen-be016",
-            storageBucket: "mi-almacen-be016.firebasestorage.app",
-            messagingSenderId: "180812846512",
-            appId: "1:180812846512:web:86e11643678392a9be7275"
-        };
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
-
-        let inventario = [], ventasHoy = [], historial = [], carrito = [];
-
-        db.ref('almacen').on('value', (s) => { inventario = s.val() || []; renderizar(); });
-        db.ref('ventasHoy').on('value', (s) => { ventasHoy = s.val() || []; actualizarBalance(); });
-        db.ref('historial').on('value', (s) => { historial = s.val() || []; actualizarBalance(); });
-
-        function notify(msg, color) {
-            const t = document.getElementById('toast');
-            t.innerText = msg;
-            t.className = `fixed top-5 right-5 z-50 p-4 rounded-lg shadow-lg text-white ${color}`;
-            t.classList.remove('hidden');
-            setTimeout(() => t.classList.add('hidden'), 3000);
-        }
-
-        function renderizar() {
-            const tbody = document.getElementById('cuerpoTabla');
-            tbody.innerHTML = '';
-            inventario.forEach((item, i) => {
-                tbody.innerHTML += `
-                    <tr>
-                        <td class="p-4">${item.nombre}</td>
-                        <td class="p-4">$${item.costo}</td>
-                        <td class="p-4">${item.stock}</td>
-                        <td class="p-4">${item.porcentaje}%</td>
-                        <td class="p-4 flex gap-2">
-                            <button onclick="editarProducto(${i})" class="text-blue-500">✏️</button>
-                            <button onclick="eliminarProducto(${i})" class="text-red-500">🗑️</button>
-                        </td>
-                    </tr>`;
-            });
-        }
-
-        function editarProducto(i) {
-            const nuevoStock = prompt("Nuevo Stock:", inventario[i].stock);
-            const nuevoPorc = prompt("Nuevo % Ganancia:", inventario[i].porcentaje);
-            if (nuevoStock !== null && nuevoPorc !== null) {
-                inventario[i].stock = parseInt(nuevoStock);
-                inventario[i].porcentaje = parseFloat(nuevoPorc);
-                db.ref('almacen').set(inventario);
-            }
-        }
-
-        function editarCierre(i) {
-            const nuevoTotal = prompt("Corregir Total:", historial[i].total);
-            const nuevaGan = prompt("Corregir Ganancia:", historial[i].ganancia);
-            if (nuevoTotal !== null && nuevaGan !== null) {
-                historial[i].total = parseFloat(nuevoTotal);
-                historial[i].ganancia = parseFloat(nuevaGan);
-                db.ref('historial').set(historial);
-            }
-        }
-
-        function agregar() {
-            const nombre = document.getElementById('prod').value;
-            const costo = parseFloat(document.getElementById('costo').value);
-            const stock = parseInt(document.getElementById('stock').value);
-            const porcentaje = parseFloat(document.getElementById('porcentaje').value);
-            if (!nombre || isNaN(costo) || isNaN(stock)) return notify("Completa los datos", "bg-red-500");
-            inventario.push({ nombre, costo, stock, porcentaje });
-            db.ref('almacen').set(inventario);
-            notify("Agregado", "bg-emerald-500");
-        }
-
-        function eliminarProducto(i) { inventario.splice(i, 1); db.ref('almacen').set(inventario); }
-
-        function confirmarVenta() {
-            // Lógica simplificada de venta
-            notify("Venta registrada", "bg-emerald-600");
-        }
-
-        function cerrarDia() {
-            historial.push({ fecha: new Date().toLocaleDateString(), total: 0, ganancia: 0 });
-            db.ref('historial').set(historial);
-        }
-
-        function actualizarBalance() {
-            const lHist = document.getElementById('listaCierres');
-            lHist.innerHTML = historial.map((h, i) => `
-                <li class="flex justify-between items-center bg-slate-50 p-2 rounded text-sm">
-                    ${h.fecha}: $${h.total} 
-                    <button onclick="editarCierre(${i})" class="text-blue-500">✏️</button>
-                </li>`).join('');
-        }
-    </script>
-</body>
-</html>
+// Y esta es la función que hace que el botón realmente funcione:
+function editarCierre(i) {
+    const nuevoTotal = prompt("Corregir total del día:", historial[i].total);
+    if (nuevoTotal !== null) {
+        historial[i].total = parseFloat(nuevoTotal);
+        db.ref('historial').set(historial);
+        notify("Cierre actualizado", "bg-blue-600");
+    }
+}
