@@ -105,7 +105,7 @@
                 <h4 class="text-sm font-semibold text-slate-500 mb-2">Ventas de Hoy</h4>
                 <ul id="listaVentasHoy" class="max-h-60 overflow-y-auto custom-scrollbar space-y-2 mb-4 text-sm"></ul>
                 <h4 class="text-sm font-semibold text-slate-500 mb-2">Historial Cierres</h4>
-                <ul id="listaCierres" class="max-h-40 overflow-y-auto custom-scrollbar space-y-2"></ul>
+                <ul id="listaCierres" class="max-h-40 overflow-y-auto custom-scrollbar space-y-2 text-xs"></ul>
             </div>
         </div>
     </div>
@@ -189,6 +189,15 @@
                         </td>
                     </tr>`;
             });
+        }
+
+        // Nueva función corregida
+        function eliminarProducto(i) {
+            if(confirm('¿Eliminar este producto del inventario?')) {
+                inventario.splice(i, 1);
+                db.ref('almacen').set(inventario);
+                renderizar();
+            }
         }
 
         function agregar() {
@@ -285,11 +294,15 @@
                 </li>`).join('');
 
             const lHist = document.getElementById('listaCierres');
-            lHist.innerHTML = (historial || []).map((h, i) => `
-                <li class="text-xs p-2 bg-slate-50 rounded border flex justify-between">
-                    <span>${h.fecha}: $${h.total.toFixed(2)} (G: $${h.ganancia.toFixed(2)})</span>
-                    <button onclick="historial.splice(${i},1);db.ref('historial').set(historial)" class="text-red-500 font-bold">X</button>
-                </li>`).join('');
+            if (historial && historial.length > 0) {
+                lHist.innerHTML = historial.map((h, i) => `
+                    <li class="p-2 bg-slate-50 rounded border flex justify-between items-center">
+                        <span>${h.fecha}: $${h.total.toFixed(2)} (G: $${h.ganancia.toFixed(2)})</span>
+                        <button onclick="if(confirm('¿Borrar?')) {historial.splice(${i},1);db.ref('historial').set(historial)}" class="text-red-500 font-bold px-2">X</button>
+                    </li>`).join('');
+            } else {
+                lHist.innerHTML = '<li class="text-slate-400 italic text-center p-2">Sin cierres aún</li>';
+            }
         }
     </script>
 </body>
