@@ -1,88 +1,344 @@
 <!DOCTYPE html>
+
 <html lang="es">
+
 <head>
+
     <meta charset="UTF-8">
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>Sistema de Gestión Completo</title>
+
     <script src="https://cdn.tailwindcss.com"></script>
+
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+
+    <style>
+
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 4px; }
+
+    </style>
+
 </head>
-<body class="bg-slate-50 min-h-screen p-4">
 
-    <div id="toast" class="fixed top-5 right-5 z-50 hidden p-4 rounded-lg shadow-lg text-white font-medium bg-emerald-600"></div>
+<body class="bg-slate-50 min-h-screen p-4 md:p-8">
 
-    <div class="max-w-4xl mx-auto">
-        <h1 class="text-2xl font-bold mb-6 text-slate-800">Almacén</h1>
 
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <!-- Inventario -->
-            <div class="bg-white p-4 rounded-xl shadow border">
-                <h2 class="font-bold mb-4">Inventario</h2>
-                <table class="w-full text-sm">
-                    <thead><tr class="text-slate-400"><th>Prod</th><th>Venta</th><th>Acciones</th></tr></thead>
-                    <tbody id="cuerpoTabla"></tbody>
-                </table>
+
+    <div id="toast" class="fixed top-5 right-5 z-50 hidden p-4 rounded-lg shadow-lg text-white font-medium"></div>
+
+
+
+    <div class="max-w-6xl mx-auto">
+
+        <header class="mb-8">
+
+            <h1 class="text-3xl font-bold text-slate-800">Almacén</h1>
+
+        </header>
+
+
+
+        <!-- Inventory Input -->
+
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-8 grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+
+            <div class="md:col-span-2">
+
+                <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Nombre</label>
+
+                <input type="text" id="prod" class="p-2 border rounded-lg w-full">
+
             </div>
 
-            <!-- Cierres -->
-            <div class="bg-white p-4 rounded-xl shadow border">
-                <h2 class="font-bold mb-4">Historial de Cierres</h2>
-                <button onclick="cerrarDia()" class="w-full bg-red-600 text-white py-2 rounded-lg font-bold mb-4">Cerrar Día</button>
-                <ul id="listaCierres" class="space-y-2"></ul>
+            <div>
+
+                <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Costo</label>
+
+                <input type="number" id="costo" class="p-2 border rounded-lg w-full">
+
             </div>
+
+            <div>
+
+                <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Stock</label>
+
+                <input type="number" id="stock" class="p-2 border rounded-lg w-full">
+
+            </div>
+
+            <div>
+
+                <label class="block text-xs font-bold uppercase text-slate-500 mb-1">% Ganancia</label>
+
+                <input type="number" id="porcentaje" value="30" class="p-2 border rounded-lg w-full">
+
+            </div>
+
+            <button onclick="agregar()" class="bg-emerald-600 text-white font-bold py-2 rounded-lg">Agregar</button>
+
         </div>
+
+
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+            <!-- Tabla Inventario -->
+
+            <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border p-6">
+
+                <h2 class="font-bold text-lg mb-4">Inventario</h2>
+
+                <table class="w-full text-left text-sm">
+
+                    <thead><tr class="text-slate-500 uppercase text-xs"><th>Producto</th><th>Venta</th><th>Stock</th><th>Acciones</th></tr></thead>
+
+                    <tbody id="cuerpoTabla"></tbody>
+
+                </table>
+
+            </div>
+
+
+
+            <!-- Carrito y Control -->
+
+            <div class="space-y-8">
+
+                <div class="bg-white p-6 rounded-xl shadow-sm border">
+
+                    <h3 class="font-bold mb-4">Carrito</h3>
+
+                    <ul id="listaCarrito" class="mb-4 space-y-2"></ul>
+
+                    <p class="font-bold text-xl mb-4">Total: $<span id="totalCarrito">0.00</span></p>
+
+                    <button onclick="confirmarVenta()" class="w-full bg-orange-500 text-white py-2 rounded-lg font-bold">Confirmar Venta</button>
+
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-sm border">
+
+                    <h3 class="font-bold mb-4">Control Diario</h3>
+
+                    <button onclick="cerrarDia()" class="w-full bg-red-600 text-white py-2 rounded-lg font-bold mb-4">Cerrar Día</button>
+
+                    <ul id="listaCierres" class="max-h-40 overflow-y-auto custom-scrollbar"></ul>
+
+                </div>
+
+            </div>
+
+        </div>
+
     </div>
 
+
+
     <script>
-        const firebaseConfig = { apiKey: "AIzaSyA2k6dGz5LHnyW_RnzZNQQbdsYsOtKGBFM", databaseURL: "https://mi-almacen-be016-default-rtdb.firebaseio.com", projectId: "mi-almacen-be016" };
+
+        const firebaseConfig = {
+
+            apiKey: "AIzaSyA2k6dGz5LHnyW_RnzZNQQbdsYsOtKGBFM",
+
+            databaseURL: "https://mi-almacen-be016-default-rtdb.firebaseio.com",
+
+            projectId: "mi-almacen-be016"
+
+        };
+
         firebase.initializeApp(firebaseConfig);
+
         const db = firebase.database();
-        let inventario = [], historial = [];
+
+
+
+        let inventario = [], carrito = [], historial = [];
+
+
 
         db.ref('almacen').on('value', (s) => { inventario = s.val() || []; renderizar(); });
+
         db.ref('historial').on('value', (s) => { historial = s.val() || []; renderizarHistorial(); });
 
-        function notify(msg) {
+
+
+        function notify(msg, color) {
+
             const t = document.getElementById('toast');
-            t.innerText = msg; t.classList.remove('hidden'); setTimeout(() => t.classList.add('hidden'), 2000);
+
+            t.innerText = msg; t.className = `fixed top-5 right-5 p-4 rounded-lg text-white ${color}`;
+
+            t.classList.remove('hidden'); setTimeout(() => t.classList.add('hidden'), 2000);
+
         }
+
+
 
         function renderizar() {
-            document.getElementById('cuerpoTabla').innerHTML = inventario.map((item, i) => `
+
+            const tbody = document.getElementById('cuerpoTabla');
+
+            tbody.innerHTML = inventario.map((item, i) => `
+
                 <tr class="border-t">
-                    <td class="p-2">${item.nombre}</td>
-                    <td class="p-2">$${(item.costo * (1 + item.porcentaje/100)).toFixed(2)}</td>
-                    <td class="p-2"><button onclick="eliminarProducto(${i})" class="text-red-500">🗑️</button></td>
+
+                    <td class="p-3">${item.nombre}</td>
+
+                    <td class="p-3 font-bold">$${(item.costo * (1 + item.porcentaje/100)).toFixed(2)}</td>
+
+                    <td class="p-3">${item.stock}</td>
+
+                    <td class="p-3">
+
+                        <button onclick="agregarAlCarrito(${i})" class="text-emerald-600 mr-2">+</button>
+
+                        <button onclick="editarProducto(${i})" class="text-blue-500 mr-2">✏️</button>
+
+                        <button onclick="eliminarProducto(${i})" class="text-red-500">🗑️</button>
+
+                    </td>
+
                 </tr>`).join('');
+
         }
 
-        function renderizarHistorial() {
-            document.getElementById('listaCierres').innerHTML = historial.map((h, i) => `
-                <li class="flex justify-between items-center p-2 bg-slate-50 rounded">
-                    ${h.fecha}: <strong>$${parseFloat(h.total).toFixed(2)}</strong>
-                    <button onclick="editarCierre(${i})" class="text-blue-600 font-bold px-2">✏️ Editar</button>
-                </li>`).join('');
+
+
+        function agregar() {
+
+            const nombre = document.getElementById('prod').value;
+
+            const costo = parseFloat(document.getElementById('costo').value);
+
+            const stock = parseInt(document.getElementById('stock').value);
+
+            const porcentaje = parseFloat(document.getElementById('porcentaje').value);
+
+            if (!nombre || isNaN(costo)) return;
+
+            inventario.push({ nombre, costo, stock, porcentaje });
+
+            db.ref('almacen').set(inventario);
+
+            notify("Producto agregado", "bg-emerald-600");
+
         }
+
+
+
+        function agregarAlCarrito(i) {
+
+            const prod = inventario[i];
+
+            if (prod.stock <= 0) return notify("Sin stock", "bg-red-500");
+
+            const precio = prod.costo * (1 + prod.porcentaje/100);
+
+            carrito.push({ index: i, nombre: prod.nombre, precio: precio });
+
+            actualizarCarrito();
+
+        }
+
+
+
+        function actualizarCarrito() {
+
+            const list = document.getElementById('listaCarrito');
+
+            let total = 0;
+
+            list.innerHTML = carrito.map((item, i) => {
+
+                total += item.precio;
+
+                return `<li class="text-sm border-b">${item.nombre} - $${item.precio.toFixed(2)}</li>`;
+
+            }).join('');
+
+            document.getElementById('totalCarrito').innerText = total.toFixed(2);
+
+        }
+
+
+
+        function confirmarVenta() {
+
+            if (carrito.length === 0) return;
+
+            carrito.forEach(c => inventario[c.index].stock--);
+
+            db.ref('almacen').set(inventario);
+
+            carrito = [];
+
+            actualizarCarrito();
+
+            notify("Venta registrada", "bg-emerald-600");
+
+        }
+
+
 
         function cerrarDia() {
-            let total = prompt("Monto total de ventas:");
+
+            let total = prompt("Monto total de ventas del día:");
+
             if (total) {
+
                 historial.push({ fecha: new Date().toLocaleDateString(), total: parseFloat(total) });
+
                 db.ref('historial').set(historial);
+
             }
+
         }
+
+
+
+      function renderizarHistorial() {
+    const contenedor = document.getElementById('listaCierres');
+    contenedor.innerHTML = historial.map((h, i) => `
+        <li class="text-sm p-3 bg-white border-b flex justify-between items-center shadow-sm rounded-lg mb-2">
+            <span>${h.fecha}: <strong>$${parseFloat(h.total).toFixed(2)}</strong></span>
+            <button onclick="editarCierre(${i})" class="bg-blue-50 text-blue-600 px-3 py-1 rounded-md font-bold hover:bg-blue-100 transition">
+                ✏️ Editar
+            </button>
+        </li>`).join('');
+}
+
+
+        function editarProducto(i) {
+
+            const s = prompt("Nuevo stock:", inventario[i].stock);
+
+            if (s !== null) { inventario[i].stock = parseInt(s); db.ref('almacen').set(inventario); }
+
+        }
+
+
 
         function editarCierre(i) {
-            let nuevo = prompt("Corregir total:", historial[i].total);
-            if (nuevo) {
-                historial[i].total = parseFloat(nuevo);
-                db.ref('historial').set(historial);
-                notify("Actualizado");
-            }
+
+            const t = prompt("Corregir total:", historial[i].total);
+
+            if (t !== null) { historial[i].total = parseFloat(t); db.ref('historial').set(historial); }
+
         }
 
+
+
         function eliminarProducto(i) { inventario.splice(i, 1); db.ref('almacen').set(inventario); }
+
     </script>
+
 </body>
-</html>
+
+</html> 
+
