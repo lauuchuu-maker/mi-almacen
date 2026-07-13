@@ -124,9 +124,22 @@
         const db = firebase.database();
         let inventario = [], ventasHoy = [], historial = [], carrito = [];
 
-        db.ref('almacen').on('value', (s) => { inventario = s.val() || []; renderizar(); });
-        db.ref('ventasHoy').on('value', (s) => { ventasHoy = s.val() || []; actualizarBalance(); });
-        db.ref('historial').on('value', (s) => { historial = s.val() || []; actualizarBalance(); });
+        // --- Carga de datos con limpieza de objetos a array ---
+        db.ref('almacen').on('value', (s) => { 
+            const data = s.val(); 
+            inventario = data ? (Array.isArray(data) ? data : Object.values(data)) : []; 
+            renderizar(); 
+        });
+        db.ref('ventasHoy').on('value', (s) => { 
+            const data = s.val();
+            ventasHoy = data ? (Array.isArray(data) ? data : Object.values(data)) : []; 
+            actualizarBalance(); 
+        });
+        db.ref('historial').on('value', (s) => { 
+            const data = s.val();
+            historial = data ? (Array.isArray(data) ? data : Object.values(data)) : []; 
+            actualizarBalance(); 
+        });
 
         function notify(msg, color) {
             const t = document.getElementById('toast');
@@ -191,12 +204,10 @@
             });
         }
 
-        // Nueva función corregida
         function eliminarProducto(i) {
             if(confirm('¿Eliminar este producto del inventario?')) {
                 inventario.splice(i, 1);
                 db.ref('almacen').set(inventario);
-                renderizar();
             }
         }
 
@@ -296,12 +307,12 @@
             const lHist = document.getElementById('listaCierres');
             if (historial && historial.length > 0) {
                 lHist.innerHTML = historial.map((h, i) => `
-                    <li class="p-2 bg-slate-50 rounded border flex justify-between items-center">
+                    <li class="p-2 bg-slate-50 rounded border flex justify-between items-center text-xs">
                         <span>${h.fecha}: $${h.total.toFixed(2)} (G: $${h.ganancia.toFixed(2)})</span>
-                        <button onclick="if(confirm('¿Borrar?')) {historial.splice(${i},1);db.ref('historial').set(historial)}" class="text-red-500 font-bold px-2">X</button>
+                        <button onclick="if(confirm('¿Borrar este cierre?')) {historial.splice(${i},1);db.ref('historial').set(historial)}" class="text-red-500 font-bold px-2">X</button>
                     </li>`).join('');
             } else {
-                lHist.innerHTML = '<li class="text-slate-400 italic text-center p-2">Sin cierres aún</li>';
+                lHist.innerHTML = '<li class="text-slate-400 italic text-center p-2 text-xs">Sin cierres aún</li>';
             }
         }
     </script>
