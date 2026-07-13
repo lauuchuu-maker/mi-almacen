@@ -137,6 +137,8 @@
         });
         db.ref('historial').on('value', (s) => { 
             const data = s.val();
+            // --- LOG DE DEBUG PARA EL USUARIO ---
+            console.log("Datos Historial recibidos desde Firebase:", data);
             historial = data ? (Array.isArray(data) ? data : Object.values(data)) : []; 
             actualizarBalance(); 
         });
@@ -178,7 +180,7 @@
                 ventasHoy[i].total = nuevosValores.total;
                 ventasHoy[i].ganancia = nuevosValores.ganancia;
                 db.ref('ventasHoy').set(ventasHoy);
-                notify("Venta recalculada y editada", "bg-blue-500");
+                notify("Venta editada", "bg-blue-500");
             }
         }
 
@@ -305,7 +307,8 @@
                 </li>`).join('');
 
             const lHist = document.getElementById('listaCierres');
-            if (historial && historial.length > 0) {
+            // Verificación extra para asegurar que se muestre el historial
+            if (historial && Array.isArray(historial) && historial.length > 0) {
                 lHist.innerHTML = historial.map((h, i) => `
                     <li class="p-2 bg-slate-50 rounded border flex justify-between items-center text-xs">
                         <span>${h.fecha}: $${h.total.toFixed(2)} (G: $${h.ganancia.toFixed(2)})</span>
