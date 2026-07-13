@@ -22,6 +22,7 @@
             <p class="text-slate-600">Sistema de gestión integral</p>
         </header>
 
+        <!-- Métricas -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                 <p class="text-xs text-slate-500 font-bold uppercase">Ventas Hoy</p>
@@ -41,6 +42,7 @@
             </div>
         </div>
 
+        <!-- Inventario -->
         <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4 items-end">
             <div class="lg:col-span-2">
                 <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Nombre</label>
@@ -100,10 +102,8 @@
             <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                 <h3 class="font-bold text-slate-700 mb-4">Control Diario</h3>
                 <button onclick="cerrarDia()" class="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg font-semibold mb-4">Cerrar Día y Guardar</button>
-                
                 <h4 class="text-sm font-semibold text-slate-500 mb-2">Ventas de Hoy</h4>
                 <ul id="listaVentasHoy" class="max-h-60 overflow-y-auto custom-scrollbar space-y-2 mb-4 text-sm"></ul>
-                
                 <h4 class="text-sm font-semibold text-slate-500 mb-2">Historial Cierres</h4>
                 <ul id="listaCierres" class="max-h-40 overflow-y-auto custom-scrollbar space-y-2"></ul>
             </div>
@@ -120,10 +120,8 @@
             messagingSenderId: "180812846512",
             appId: "1:180812846512:web:86e11643678392a9be7275"
         };
-
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
-
         let inventario = [], ventasHoy = [], historial = [], carrito = [];
 
         db.ref('almacen').on('value', (s) => { inventario = s.val() || []; renderizar(); });
@@ -138,17 +136,49 @@
             setTimeout(() => t.classList.add('hidden'), 3000);
         }
 
+        // --- Lógica de Recálculo ---
+        function recalcularVenta(descripcion) {
+            let total = 0, ganancia = 0;
+            const items = descripcion.split(', ');
+            items.forEach(item => {
+                const parts = item.split('x ');
+                if (parts.length === 2) {
+                    const cant = parseInt(parts[0]);
+                    const nombre = parts[1].trim();
+                    const prod = inventario.find(p => p.nombre.toLowerCase() === nombre.toLowerCase());
+                    if (prod) {
+                        const precioVenta = (parseFloat(prod.costo) * (1 + parseFloat(prod.porcentaje) / 100));
+                        total += (precioVenta * cant);
+                        ganancia += ((precioVenta - parseFloat(prod.costo)) * cant);
+                    }
+                }
+            });
+            return { total, ganancia };
+        }
+
+        function editarVentaHoy(i) {
+            let v = ventasHoy[i];
+            let nuevaDesc = prompt("Modifica los productos (ej: 2x Producto A, 1x Producto B):", v.descripcion || "");
+            if (nuevaDesc !== null) {
+                const nuevosValores = recalcularVenta(nuevaDesc);
+                ventasHoy[i].descripcion = nuevaDesc;
+                ventasHoy[i].total = nuevosValores.total;
+                ventasHoy[i].ganancia = nuevosValores.ganancia;
+                db.ref('ventasHoy').set(ventasHoy);
+                notify("Venta recalculada y editada", "bg-blue-500");
+            }
+        }
+
+        // --- Funciones de Renderizado y Acciones ---
         function renderizar() {
             const tbody = document.getElementById('cuerpoTabla');
-            const busqueda = document.getElementById('busqueda').value.toLowerCase();
             tbody.innerHTML = '';
             inventario.forEach((item, i) => {
-                if (!item.nombre.toLowerCase().includes(busqueda)) return;
                 const precio = (parseFloat(item.costo) * (1 + parseFloat(item.porcentaje) / 100));
                 tbody.innerHTML += `
                     <tr class="hover:bg-slate-50">
                         <td class="p-4">${item.foto ? `<img src="${item.foto}" class="w-10 h-10 object-cover rounded">` : "No"}</td>
-                        <td class="p-4 font-medium text-slate-800">${item.nombre}</td>
+                        <td class="p-4 font-medium">${item.nombre}</td>
                         <td class="p-4">$${parseFloat(item.costo).toFixed(2)}</td>
                         <td class="p-4">${item.porcentaje}%</td>
                         <td class="p-4 font-bold text-emerald-700">$${precio.toFixed(2)}</td>
@@ -168,18 +198,12 @@
             const stock = parseInt(document.getElementById('stock').value);
             const porcentaje = parseFloat(document.getElementById('porcentaje').value);
             const fotoInput = document.getElementById('fotoInput');
-            
             if (!nombre || isNaN(costo) || isNaN(stock)) return notify("Completa todos los campos", "bg-red-500");
-
             function guardar(foto) {
                 inventario.push({ nombre, costo, stock, porcentaje, foto });
                 db.ref('almacen').set(inventario);
                 notify("Producto agregado", "bg-emerald-500");
-                document.getElementById('prod').value = '';
-                document.getElementById('costo').value = '';
-                document.getElementById('stock').value = '';
             }
-
             if (fotoInput.files[0]) {
                 const reader = new FileReader();
                 reader.onload = (e) => guardar(e.target.result);
@@ -187,19 +211,11 @@
             } else guardar(null);
         }
 
-        function eliminarProducto(i) {
-            inventario.splice(i, 1);
-            db.ref('almacen').set(inventario);
-        }
-
         function agregarAlCarrito(i) {
             const cant = parseInt(document.getElementById(`cant-${i}`).value);
-            if (isNaN(cant) || cant <= 0) return notify("Cantidad inválida", "bg-red-500");
             const prod = inventario[i];
             const precioVenta = (parseFloat(prod.costo) * (1 + parseFloat(prod.porcentaje) / 100));
             const gananciaUnit = precioVenta - parseFloat(prod.costo);
-            
-            if (cant > prod.stock) return notify("Stock insuficiente", "bg-red-500");
             carrito.push({ index: i, nombre: prod.nombre, cant, total: precioVenta * cant, ganancia: gananciaUnit * cant });
             actualizarCarrito();
         }
@@ -210,7 +226,7 @@
             list.innerHTML = "";
             carrito.forEach((item, i) => {
                 total += item.total;
-                list.innerHTML += `<li class="flex justify-between text-sm bg-slate-50 p-2 rounded">${item.nombre} x${item.cant} = $${item.total.toFixed(2)} <button onclick="carrito.splice(${i},1);actualizarCarrito()" class="text-red-400 font-bold ml-2">X</button></li>`;
+                list.innerHTML += `<li class="flex justify-between text-sm p-2 bg-slate-50 rounded">${item.nombre} x${item.cant} = $${item.total.toFixed(2)} <button onclick="carrito.splice(${i},1);actualizarCarrito()" class="text-red-400 font-bold">X</button></li>`;
             });
             document.getElementById('totalCarrito').innerText = total.toFixed(2);
         }
@@ -218,22 +234,22 @@
         function confirmarVenta() {
             if (carrito.length === 0) return;
             let totalVenta = 0, totalGanancia = 0;
-            let descripcionVenta = carrito.map(item => `${item.cant}x ${item.nombre}`).join(', ');
+            let desc = carrito.map(item => `${item.cant}x ${item.nombre}`).join(', ');
             carrito.forEach(item => {
                 inventario[item.index].stock -= item.cant;
                 totalVenta += item.total;
                 totalGanancia += item.ganancia;
             });
-            ventasHoy.push({ total: totalVenta, ganancia: totalGanancia, timestamp: Date.now(), descripcion: descripcionVenta });
+            ventasHoy.push({ total: totalVenta, ganancia: totalGanancia, timestamp: Date.now(), descripcion: desc });
             db.ref('almacen').set(inventario);
             db.ref('ventasHoy').set(ventasHoy);
             carrito = [];
             actualizarCarrito();
-            notify("Venta registrada!", "bg-emerald-600");
+            notify("Venta registrada", "bg-emerald-600");
         }
 
         function cerrarDia() {
-            if (!ventasHoy || ventasHoy.length === 0) return notify("No hay ventas hoy", "bg-yellow-600");
+            if (ventasHoy.length === 0) return notify("No hay ventas", "bg-red-500");
             let tTotal = 0, tGanancia = 0;
             ventasHoy.forEach(v => { tTotal += v.total; tGanancia += v.ganancia; });
             historial.push({ fecha: new Date().toLocaleDateString(), total: tTotal, ganancia: tGanancia });
@@ -242,50 +258,15 @@
             notify("Día cerrado", "bg-blue-600");
         }
 
-        function editarVentaHoy(i) {
-            let v = ventasHoy[i];
-            let nuevaDesc = prompt("Modifica los productos vendidos:", v.descripcion || "");
-            let nuevoTotal = prompt("Ingresa nuevo total:", v.total.toFixed(2));
-            let nuevaGanancia = prompt("Ingresa nueva ganancia:", v.ganancia.toFixed(2));
-            
-            if (nuevaDesc !== null && nuevoTotal !== null && nuevaGanancia !== null) {
-                ventasHoy[i].descripcion = nuevaDesc;
-                ventasHoy[i].total = parseFloat(nuevoTotal);
-                ventasHoy[i].ganancia = parseFloat(nuevaGanancia);
-                db.ref('ventasHoy').set(ventasHoy);
-                notify("Venta editada", "bg-blue-500");
-            }
-        }
-
         function eliminarVentaHoy(i) {
             ventasHoy.splice(i, 1);
             db.ref('ventasHoy').set(ventasHoy);
-            notify("Venta eliminada", "bg-red-500");
-        }
-
-        function eliminarCierre(i) {
-            historial.splice(i, 1);
-            db.ref('historial').set(historial);
-            notify("Cierre eliminado", "bg-red-500");
-        }
-
-        function editarCierre(i) {
-            let h = historial[i];
-            let nuevoTotal = prompt("Ingresa nuevo total:", h.total.toFixed(2));
-            let nuevaGanancia = prompt("Ingresa nueva ganancia:", h.ganancia.toFixed(2));
-            if (nuevoTotal !== null && nuevaGanancia !== null) {
-                historial[i].total = parseFloat(nuevoTotal);
-                historial[i].ganancia = parseFloat(nuevaGanancia);
-                db.ref('historial').set(historial);
-                notify("Cierre editado", "bg-blue-500");
-            }
         }
 
         function actualizarBalance() {
             let tVenta = 0, tGanancia = 0, tVentasMes = 0, tGananciaMes = 0;
-            if(ventasHoy) ventasHoy.forEach(v => { tVenta += v.total; tGanancia += v.ganancia; });
-            if(historial) historial.forEach(h => { tVentasMes += h.total; tGananciaMes += h.ganancia; });
-            
+            (ventasHoy || []).forEach(v => { tVenta += v.total; tGanancia += v.ganancia; });
+            (historial || []).forEach(h => { tVentasMes += h.total; tGananciaMes += h.ganancia; });
             document.getElementById('recaudadoHoy').innerText = `$${tVenta.toFixed(2)}`;
             document.getElementById('gananciaHoy').innerText = `$${tGanancia.toFixed(2)}`;
             document.getElementById('totalMes').innerText = `$${tVentasMes.toFixed(2)}`;
@@ -293,29 +274,22 @@
             
             const lVentas = document.getElementById('listaVentasHoy');
             lVentas.innerHTML = (ventasHoy || []).map((v, i) => `
-                <li class="bg-slate-50 p-2 rounded border">
-                    <div class="flex justify-between items-center">
+                <li class="bg-white p-2 rounded border border-slate-100">
+                    <div class="flex justify-between text-xs">
                         <span class="font-bold text-blue-600">$${v.total.toFixed(2)}</span>
-                        <div class="flex gap-1">
-                            <button onclick="editarVentaHoy(${i})" class="text-blue-500 font-bold px-2 text-xs">Edit</button>
-                            <button onclick="eliminarVentaHoy(${i})" class="text-red-500 font-bold px-2 text-xs">X</button>
+                        <div class="flex gap-2">
+                            <button onclick="editarVentaHoy(${i})" class="text-blue-500 underline">Editar</button>
+                            <button onclick="eliminarVentaHoy(${i})" class="text-red-500 underline">X</button>
                         </div>
                     </div>
-                    <p class="text-xs text-slate-500 mt-1 break-words">G: $${v.ganancia.toFixed(2)} | Prod: ${v.descripcion || 'N/A'}</p>
+                    <p class="text-[10px] text-slate-500">${v.descripcion}</p>
                 </li>`).join('');
 
             const lHist = document.getElementById('listaCierres');
             lHist.innerHTML = (historial || []).map((h, i) => `
-                <li class="text-xs p-2 bg-slate-50 rounded border flex justify-between items-center">
-                    <div>
-                        <span class="block font-bold">${h.fecha}</span>
-                        <span class="text-slate-600">$${h.total.toFixed(2)} |</span>
-                        <span class="text-emerald-600 font-semibold">G: $${h.ganancia.toFixed(2)}</span>
-                    </div>
-                    <div class="flex gap-1">
-                        <button onclick="editarCierre(${i})" class="text-blue-500 font-bold px-2">Edit</button>
-                        <button onclick="eliminarCierre(${i})" class="text-red-500 font-bold px-2">X</button>
-                    </div>
+                <li class="text-xs p-2 bg-slate-50 rounded border flex justify-between">
+                    <span>${h.fecha}: $${h.total.toFixed(2)} (G: $${h.ganancia.toFixed(2)})</span>
+                    <button onclick="historial.splice(${i},1);db.ref('historial').set(historial)" class="text-red-500 font-bold">X</button>
                 </li>`).join('');
         }
     </script>
