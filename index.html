@@ -102,7 +102,7 @@
                 <button onclick="cerrarDia()" class="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg font-semibold mb-4">Cerrar Día y Guardar</button>
                 
                 <h4 class="text-sm font-semibold text-slate-500 mb-2">Ventas de Hoy</h4>
-                <ul id="listaVentasHoy" class="max-h-40 overflow-y-auto custom-scrollbar space-y-2 mb-4 text-sm"></ul>
+                <ul id="listaVentasHoy" class="max-h-60 overflow-y-auto custom-scrollbar space-y-2 mb-4 text-sm"></ul>
                 
                 <h4 class="text-sm font-semibold text-slate-500 mb-2">Historial Cierres</h4>
                 <ul id="listaCierres" class="max-h-40 overflow-y-auto custom-scrollbar space-y-2"></ul>
@@ -194,6 +194,7 @@
 
         function agregarAlCarrito(i) {
             const cant = parseInt(document.getElementById(`cant-${i}`).value);
+            if (isNaN(cant) || cant <= 0) return notify("Cantidad inválida", "bg-red-500");
             const prod = inventario[i];
             const precioVenta = (parseFloat(prod.costo) * (1 + parseFloat(prod.porcentaje) / 100));
             const gananciaUnit = precioVenta - parseFloat(prod.costo);
@@ -209,7 +210,7 @@
             list.innerHTML = "";
             carrito.forEach((item, i) => {
                 total += item.total;
-                list.innerHTML += `<li class="flex justify-between text-sm bg-slate-50 p-2 rounded">${item.nombre} x${item.cant} = $${item.total.toFixed(2)} <button onclick="carrito.splice(${i},1);actualizarCarrito()" class="text-red-400 font-bold">X</button></li>`;
+                list.innerHTML += `<li class="flex justify-between text-sm bg-slate-50 p-2 rounded">${item.nombre} x${item.cant} = $${item.total.toFixed(2)} <button onclick="carrito.splice(${i},1);actualizarCarrito()" class="text-red-400 font-bold ml-2">X</button></li>`;
             });
             document.getElementById('totalCarrito').innerText = total.toFixed(2);
         }
@@ -232,7 +233,7 @@
         }
 
         function cerrarDia() {
-            if (ventasHoy.length === 0) return;
+            if (!ventasHoy || ventasHoy.length === 0) return notify("No hay ventas hoy", "bg-yellow-600");
             let tTotal = 0, tGanancia = 0;
             ventasHoy.forEach(v => { tTotal += v.total; tGanancia += v.ganancia; });
             historial.push({ fecha: new Date().toLocaleDateString(), total: tTotal, ganancia: tGanancia });
@@ -242,39 +243,48 @@
         }
 
         function editarVentaHoy(i) {
-            let nuevoTotal = prompt("Ingresa nuevo total:", ventasHoy[i].total);
-            let nuevaGanancia = prompt("Ingresa nueva ganancia:", ventasHoy[i].ganancia);
-            if (nuevoTotal && nuevaGanancia) {
+            let v = ventasHoy[i];
+            let nuevoTotal = prompt("Ingresa nuevo total:", v.total.toFixed(2));
+            let nuevaGanancia = prompt("Ingresa nueva ganancia:", v.ganancia.toFixed(2));
+            let nuevaDesc = prompt("Modifica los productos vendidos:", v.descripcion || "");
+            
+            if (nuevoTotal !== null && nuevaGanancia !== null && nuevaDesc !== null) {
                 ventasHoy[i].total = parseFloat(nuevoTotal);
                 ventasHoy[i].ganancia = parseFloat(nuevaGanancia);
+                ventasHoy[i].descripcion = nuevaDesc;
                 db.ref('ventasHoy').set(ventasHoy);
+                notify("Venta editada", "bg-blue-500");
             }
         }
 
         function eliminarVentaHoy(i) {
             ventasHoy.splice(i, 1);
             db.ref('ventasHoy').set(ventasHoy);
+            notify("Venta eliminada", "bg-red-500");
         }
 
         function eliminarCierre(i) {
             historial.splice(i, 1);
             db.ref('historial').set(historial);
+            notify("Cierre eliminado", "bg-red-500");
         }
 
         function editarCierre(i) {
-            let nuevoTotal = prompt("Ingresa nuevo total:", historial[i].total);
-            let nuevaGanancia = prompt("Ingresa nueva ganancia:", historial[i].ganancia);
-            if (nuevoTotal && nuevaGanancia) {
+            let h = historial[i];
+            let nuevoTotal = prompt("Ingresa nuevo total:", h.total.toFixed(2));
+            let nuevaGanancia = prompt("Ingresa nueva ganancia:", h.ganancia.toFixed(2));
+            if (nuevoTotal !== null && nuevaGanancia !== null) {
                 historial[i].total = parseFloat(nuevoTotal);
                 historial[i].ganancia = parseFloat(nuevaGanancia);
                 db.ref('historial').set(historial);
+                notify("Cierre editado", "bg-blue-500");
             }
         }
 
         function actualizarBalance() {
             let tVenta = 0, tGanancia = 0, tVentasMes = 0, tGananciaMes = 0;
-            ventasHoy.forEach(v => { tVenta += v.total; tGanancia += v.ganancia; });
-            historial.forEach(h => { tVentasMes += h.total; tGananciaMes += h.ganancia; });
+            if(ventasHoy) ventasHoy.forEach(v => { tVenta += v.total; tGanancia += v.ganancia; });
+            if(historial) historial.forEach(h => { tVentasMes += h.total; tGananciaMes += h.ganancia; });
             
             document.getElementById('recaudadoHoy').innerText = `$${tVenta.toFixed(2)}`;
             document.getElementById('gananciaHoy').innerText = `$${tGanancia.toFixed(2)}`;
@@ -282,20 +292,20 @@
             document.getElementById('gananciaMes').innerText = `$${tGananciaMes.toFixed(2)}`;
             
             const lVentas = document.getElementById('listaVentasHoy');
-            lVentas.innerHTML = ventasHoy.map((v, i) => `
+            lVentas.innerHTML = (ventasHoy || []).map((v, i) => `
                 <li class="bg-slate-50 p-2 rounded border">
                     <div class="flex justify-between items-center">
                         <span class="font-bold text-blue-600">$${v.total.toFixed(2)}</span>
                         <div class="flex gap-1">
-                            <button onclick="editarVentaHoy(${i})" class="text-blue-500 font-bold px-2">Edit</button>
-                            <button onclick="eliminarVentaHoy(${i})" class="text-red-500 font-bold px-2">X</button>
+                            <button onclick="editarVentaHoy(${i})" class="text-blue-500 font-bold px-2 text-xs">Edit</button>
+                            <button onclick="eliminarVentaHoy(${i})" class="text-red-500 font-bold px-2 text-xs">X</button>
                         </div>
                     </div>
-                    <p class="text-xs text-slate-500 mt-1">G: $${v.ganancia.toFixed(2)} | Productos: ${v.descripcion || 'N/A'}</p>
+                    <p class="text-xs text-slate-500 mt-1 break-words">G: $${v.ganancia.toFixed(2)} | Prod: ${v.descripcion || 'N/A'}</p>
                 </li>`).join('');
 
             const lHist = document.getElementById('listaCierres');
-            lHist.innerHTML = historial.map((h, i) => `
+            lHist.innerHTML = (historial || []).map((h, i) => `
                 <li class="text-xs p-2 bg-slate-50 rounded border flex justify-between items-center">
                     <div>
                         <span class="block font-bold">${h.fecha}</span>
