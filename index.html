@@ -1,28 +1,88 @@
-function actualizarBalance() {
-    let tVenta = 0, tGanancia = 0, tVentasMes = 0, tGananciaMes = 0;
-    ventasHoy.forEach(v => { tVenta += v.total; tGanancia += v.ganancia; });
-    historial.forEach(h => { tVentasMes += h.total; tGananciaMes += h.ganancia; });
-    
-    document.getElementById('recaudadoHoy').innerText = `$${tVenta.toFixed(2)}`;
-    document.getElementById('gananciaHoy').innerText = `$${tGanancia.toFixed(2)}`;
-    document.getElementById('totalMes').innerText = `$${tVentasMes.toFixed(2)}`;
-    document.getElementById('gananciaMes').innerText = `$${tGananciaMes.toFixed(2)}`;
-    
-    // AQUÍ ESTÁ LA CORRECCIÓN: He añadido el botón ✏️ dentro del map
-    const lHist = document.getElementById('listaCierres');
-    lHist.innerHTML = historial.map((h, i) => `
-        <li class="text-xs p-2 bg-slate-50 rounded border flex justify-between items-center mb-1">
-            <span>${h.fecha} - <strong>$${h.total.toFixed(2)}</strong></span>
-            <button onclick="editarCierre(${i})" class="text-blue-500 hover:text-blue-700 ml-2">✏️</button>
-        </li>`).join('');
-}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Gestión Completo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+</head>
+<body class="bg-slate-50 min-h-screen p-4">
 
-// Asegúrate de tener también esta función para que el botón haga algo:
-function editarCierre(i) {
-    const nuevoTotal = prompt("Corregir Total:", historial[i].total);
-    if (nuevoTotal !== null) {
-        historial[i].total = parseFloat(nuevoTotal);
-        db.ref('historial').set(historial);
-        notify("Cierre actualizado", "bg-blue-600");
-    }
-}
+    <div id="toast" class="fixed top-5 right-5 z-50 hidden p-4 rounded-lg shadow-lg text-white font-medium bg-emerald-600"></div>
+
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-2xl font-bold mb-6 text-slate-800">Almacén</h1>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Inventario -->
+            <div class="bg-white p-4 rounded-xl shadow border">
+                <h2 class="font-bold mb-4">Inventario</h2>
+                <table class="w-full text-sm">
+                    <thead><tr class="text-slate-400"><th>Prod</th><th>Venta</th><th>Acciones</th></tr></thead>
+                    <tbody id="cuerpoTabla"></tbody>
+                </table>
+            </div>
+
+            <!-- Cierres -->
+            <div class="bg-white p-4 rounded-xl shadow border">
+                <h2 class="font-bold mb-4">Historial de Cierres</h2>
+                <button onclick="cerrarDia()" class="w-full bg-red-600 text-white py-2 rounded-lg font-bold mb-4">Cerrar Día</button>
+                <ul id="listaCierres" class="space-y-2"></ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = { apiKey: "AIzaSyA2k6dGz5LHnyW_RnzZNQQbdsYsOtKGBFM", databaseURL: "https://mi-almacen-be016-default-rtdb.firebaseio.com", projectId: "mi-almacen-be016" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        let inventario = [], historial = [];
+
+        db.ref('almacen').on('value', (s) => { inventario = s.val() || []; renderizar(); });
+        db.ref('historial').on('value', (s) => { historial = s.val() || []; renderizarHistorial(); });
+
+        function notify(msg) {
+            const t = document.getElementById('toast');
+            t.innerText = msg; t.classList.remove('hidden'); setTimeout(() => t.classList.add('hidden'), 2000);
+        }
+
+        function renderizar() {
+            document.getElementById('cuerpoTabla').innerHTML = inventario.map((item, i) => `
+                <tr class="border-t">
+                    <td class="p-2">${item.nombre}</td>
+                    <td class="p-2">$${(item.costo * (1 + item.porcentaje/100)).toFixed(2)}</td>
+                    <td class="p-2"><button onclick="eliminarProducto(${i})" class="text-red-500">🗑️</button></td>
+                </tr>`).join('');
+        }
+
+        function renderizarHistorial() {
+            document.getElementById('listaCierres').innerHTML = historial.map((h, i) => `
+                <li class="flex justify-between items-center p-2 bg-slate-50 rounded">
+                    ${h.fecha}: <strong>$${parseFloat(h.total).toFixed(2)}</strong>
+                    <button onclick="editarCierre(${i})" class="text-blue-600 font-bold px-2">✏️ Editar</button>
+                </li>`).join('');
+        }
+
+        function cerrarDia() {
+            let total = prompt("Monto total de ventas:");
+            if (total) {
+                historial.push({ fecha: new Date().toLocaleDateString(), total: parseFloat(total) });
+                db.ref('historial').set(historial);
+            }
+        }
+
+        function editarCierre(i) {
+            let nuevo = prompt("Corregir total:", historial[i].total);
+            if (nuevo) {
+                historial[i].total = parseFloat(nuevo);
+                db.ref('historial').set(historial);
+                notify("Actualizado");
+            }
+        }
+
+        function eliminarProducto(i) { inventario.splice(i, 1); db.ref('almacen').set(inventario); }
+    </script>
+</body>
+</html>
