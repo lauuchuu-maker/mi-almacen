@@ -136,7 +136,7 @@
             setTimeout(() => t.classList.add('hidden'), 3000);
         }
 
-        // --- Lógica de Recálculo ---
+        // --- Lógica de Recálculo Automático ---
         function recalcularVenta(descripcion) {
             let total = 0, ganancia = 0;
             const items = descripcion.split(', ');
@@ -169,7 +169,6 @@
             }
         }
 
-        // --- Funciones de Renderizado y Acciones ---
         function renderizar() {
             const tbody = document.getElementById('cuerpoTabla');
             tbody.innerHTML = '';
