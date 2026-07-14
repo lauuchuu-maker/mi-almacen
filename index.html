@@ -435,8 +435,13 @@
             let total = carrito.reduce((sum, item) => sum + item.total, 0);
             let gananciaTotal = carrito.reduce((sum, item) => sum + item.ganancia, 0);
             
-            // Guardamos la venta con su ganancia
-            ventasHoy.push({ total: total, ganancia: gananciaTotal, descripcion: descripcionVenta });
+            // Guardamos la venta con los items para permitir revertir stock después
+            ventasHoy.push({ 
+                total: total, 
+                ganancia: gananciaTotal, 
+                descripcion: descripcionVenta,
+                items: carrito 
+            });
             
             db.ref('almacen').set(inventario);
             db.ref('ventasHoy').set(ventasHoy);
@@ -563,7 +568,20 @@
         }
 
         function eliminarVentaHoy(index) {
-            mostrarConfirmacion("¿Eliminar esta venta del total de hoy?", function() {
+            mostrarConfirmacion("¿Eliminar esta venta? Se devolverán los productos al stock.", function() {
+                let venta = ventasHoy[index];
+                
+                // Si la venta tiene items, devolvemos el stock al inventario
+                if (venta.items) {
+                    venta.items.forEach(item => {
+                        let prod = inventario.find(p => p.nombre === item.nombre);
+                        if (prod) {
+                            prod.stock += item.cant;
+                        }
+                    });
+                    db.ref('almacen').set(inventario);
+                }
+                
                 ventasHoy.splice(index, 1);
                 db.ref('ventasHoy').set(ventasHoy);
             });
