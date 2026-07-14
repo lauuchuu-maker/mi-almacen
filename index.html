@@ -77,6 +77,29 @@
         <h2>Gestión de Almacén (Conectado)</h2>
         
         <div class="formulario">
+            <input type="text" id="busqueda" placeholder="Buscar producto..." onkeyup="renderizar()">
+            <input type="text" id="prod" placeholder="Nombre producto">
+            <input type="number" id="costo" placeholder="Costo ($)">
+            <input type="number" id="porcentaje" placeholder="% Ganancia" value="30">
+            <input type="number" id="stock" placeholder="Stock">
+            <input type="file" id="fotoInput" accept="image/*">
+            <button class="btn-add" onclick="agregar()">Agregar Producto</button>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Foto</th>
+                    <th>Producto</th>
+                    <th>Costo</th>
+                    <th>%</th>
+                    <th>Precio Venta</th>
+                    <th>Stock</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="cuerpoTabla"></tbody>
+        </table>
 
     <div class="panel">
         <div class="seccion">
