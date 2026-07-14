@@ -1,53 +1,153 @@
-<!-- ... existing code ... -->
-        function cerrarDia() {
-            if (ventasHoy.length === 0) return mostrarAlerta("No hay ventas registradas el día de hoy.");
-            
-            mostrarConfirmacion("¿Seguro que deseas cerrar el día? Las ventas pasarán al historial.", function() {
-                let totalDia = ventasHoy.reduce((a, b) => a + (b.total || 0), 0);
-                let gananciaDia = ventasHoy.reduce((a, b) => a + (b.ganancia || 0), 0);
-                let todoLoVendidoHoy = ventasHoy.map(v => v.descripcion).join(' | ');
-                
-                // Recolectamos todos los items vendidos en el día para guardarlos en el historial
-                let itemsVendidosHoy = [];
-                ventasHoy.forEach(v => {
-                    if (v.items) itemsVendidosHoy.push(...v.items);
-                });
-                
-                historial.push({ 
-                    fecha: new Date().toLocaleDateString(), 
-                    total: totalDia,
-                    ganancia: gananciaDia,
-                    descripcion: todoLoVendidoHoy,
-                    items: itemsVendidosHoy // Guardamos los items aquí
-                });
-                
-                db.ref('historial').set(historial);
-                db.ref('ventasHoy').remove();
-                carrito = [];
-                actualizarCarrito();
-            });
-        }
-<!-- ... existing code ... -->
-        function eliminarCierre(index) {
-            mostrarConfirmacion("¿Eliminar este registro de cierre? Se devolverá el stock de los productos vendidos.", function() {
-                let cierre = historial[index];
-                
-                // Si el cierre tiene items guardados, devolvemos el stock
-                if (cierre.items) {
-                    cierre.items.forEach(soldItem => {
-                        let prod = inventario.find(p => p.nombre === soldItem.nombre);
-                        if (prod) {
-                            prod.stock += soldItem.cant;
-                        }
-                    });
-                    db.ref('almacen').set(inventario);
-                }
-                
-                historial.splice(index, 1);
-                db.ref('historial').set(historial);
-            });
-        }
-<!-- ... existing code ... -->
-```
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Gestión de Almacén (Actualizado)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <style>
+        body { font-family: sans-serif; background: #f4f4f9; padding: 20px; }
+        .hidden-app { display: none; }
+        .modal { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.5); display:none; justify-content:center; align-items:center; }
+        .modal-content { background: white; padding: 20px; border-radius: 8px; width: 300px; }
+    </style>
+</head>
+<body>
 
-Con estos ajustes, cada vez que cierres el día, el sistema recordará exactamente qué se vendió. Así, cuando necesites borrar un cierre por error, el programa sabrá qué cantidades devolver al inventario de forma automática. ¡Espero que esto deje tu sistema funcionando perfectamente!
+    <!-- Pantalla de Login -->
+    <div id="loginScreen" class="flex justify-center items-center h-screen">
+        <div class="bg-white p-8 rounded shadow-md w-80">
+            <h2 class="text-xl mb-4">Iniciar Sesión</h2>
+            <input type="email" id="email" placeholder="Correo" class="border p-2 w-full mb-2">
+            <input type="password" id="password" placeholder="Contraseña" class="border p-2 w-full mb-4">
+            <button onclick="login()" class="bg-blue-500 text-white w-full p-2 rounded">Entrar</button>
+        </div>
+    </div>
+
+    <!-- Aplicación Principal -->
+    <div id="app" class="hidden-app">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold">Gestión de Almacén (Conectado)</h2>
+            <button onclick="logout()" class="bg-gray-500 text-white px-4 py-2 rounded">Cerrar Sesión</button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Inventario -->
+            <div class="bg-white p-4 rounded shadow">
+                <input type="text" id="busqueda" placeholder="Buscar producto..." onkeyup="renderizar()" class="border p-2 w-full mb-4">
+                <table class="w-full border-collapse">
+                    <thead><tr class="bg-gray-100"><th>Producto</th><th>Precio</th><th>Stock</th><th>Acciones</th></tr></thead>
+                    <tbody id="cuerpoTabla"></tbody>
+                </table>
+            </div>
+
+            <!-- Panel de Ventas y Balance -->
+            <div class="bg-white p-4 rounded shadow">
+                <h3 class="font-bold mb-2">Carrito Actual</h3>
+                <ul id="listaCarrito" class="mb-4"></ul>
+                <button onclick="confirmarVenta()" class="bg-green-500 text-white px-4 py-2 rounded">Confirmar Venta</button>
+
+                <div class="mt-6 border-t pt-4">
+                    <h3 class="font-bold">Balance</h3>
+                    <p>Hoy: <strong id="recaudadoHoy">$0.00</strong> | Ganancia: <strong id="gananciaHoy" class="text-green-600">$0.00</strong></p>
+                    <button onclick="cerrarDia()" class="bg-red-600 text-white px-4 py-2 mt-2 rounded">Cerrar Día</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyA2k6dGz5LHnyW_RnzZNQQbdsYsOtKGBFM",
+            authDomain: "mi-almacen-be016.firebaseapp.com",
+            databaseURL: "https://mi-almacen-be016-default-rtdb.firebaseio.com",
+            projectId: "mi-almacen-be016",
+            storageBucket: "mi-almacen-be016.firebasestorage.app",
+            messagingSenderId: "180812846512",
+            appId: "1:180812846512:web:86e11643678392a9be7275"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.database();
+
+        let inventario = [], ventasHoy = [], historial = [], carrito = [];
+
+        // Auth Logic
+        function login() {
+            const email = document.getElementById('email').value;
+            const pass = document.getElementById('password').value;
+            auth.signInWithEmailAndPassword(email, pass).catch(e => alert(e.message));
+        }
+
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                document.getElementById('loginScreen').classList.add('hidden-app');
+                document.getElementById('app').classList.remove('hidden-app');
+                loadData();
+            } else {
+                document.getElementById('loginScreen').classList.remove('hidden-app');
+                document.getElementById('app').classList.add('hidden-app');
+            }
+        });
+
+        function logout() { auth.signOut(); }
+
+        function loadData() {
+            db.ref('almacen').on('value', s => { inventario = s.val() || []; renderizar(); });
+            db.ref('ventasHoy').on('value', s => { ventasHoy = s.val() || []; actualizarBalance(); });
+        }
+
+        function renderizar() {
+            let tbody = document.getElementById('cuerpoTabla');
+            tbody.innerHTML = '';
+            inventario.forEach((item, i) => {
+                let precio = (parseFloat(item.costo) * (1 + parseFloat(item.porcentaje)/100)).toFixed(2);
+                tbody.innerHTML += `<tr>
+                    <td>${item.nombre}</td><td>$${precio}</td><td>${item.stock}</td>
+                    <td><button onclick="agregarAlCarrito(${i})" class="bg-blue-500 text-white px-2 rounded">+</button></td>
+                </tr>`;
+            });
+        }
+
+        function agregarAlCarrito(i) {
+            let prod = inventario[i];
+            let precioVenta = parseFloat(prod.costo) * (1 + parseFloat(prod.porcentaje)/100);
+            carrito.push({ index: i, nombre: prod.nombre, cant: 1, total: precioVenta, ganancia: (precioVenta - prod.costo) });
+            actualizarCarrito();
+        }
+
+        function actualizarCarrito() {
+            let lista = document.getElementById('listaCarrito');
+            lista.innerHTML = carrito.map((item, i) => `<li>${item.nombre} - $${item.total.toFixed(2)}</li>`).join('');
+        }
+
+        function confirmarVenta() {
+            carrito.forEach(item => inventario[item.index].stock -= item.cant);
+            ventasHoy.push({ total: carrito.reduce((a,b) => a + b.total, 0), items: [...carrito] });
+            db.ref('almacen').set(inventario);
+            db.ref('ventasHoy').set(ventasHoy);
+            carrito = [];
+            actualizarCarrito();
+        }
+
+        function cerrarDia() {
+            let totalDia = ventasHoy.reduce((a, b) => a + b.total, 0);
+            let gananciaDia = ventasHoy.reduce((a, b) => a + (b.items ? b.items.reduce((acc, item) => acc + item.ganancia, 0) : 0), 0);
+            
+            historial.push({ fecha: new Date().toLocaleDateString(), total: totalDia, ganancia: gananciaDia });
+            db.ref('historial').set(historial);
+            db.ref('ventasHoy').remove();
+            ventasHoy = [];
+        }
+
+        function actualizarBalance() {
+            let total = ventasHoy.reduce((a, b) => a + b.total, 0);
+            let ganancia = ventasHoy.reduce((a, b) => a + (b.items ? b.items.reduce((acc, item) => acc + item.ganancia, 0) : 0), 0);
+            document.getElementById('recaudadoHoy').innerText = "$" + total.toFixed(2);
+            document.getElementById('gananciaHoy').innerText = "$" + ganancia.toFixed(2);
+        }
+    </script>
+</body>
+</html>
