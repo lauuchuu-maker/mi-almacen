@@ -1,755 +1,523 @@
 <!DOCTYPE html>
-
 <html lang="es">
-
 <head>
-
     <meta charset="UTF-8">
-
     <title>Sistema de Gestión Completo</title>
-
     <style>
-
         body { 
-
             font-family: sans-serif; 
-
             padding: 20px; 
-
             background: linear-gradient(rgba(244, 244, 249, 0.85), rgba(244, 244, 249, 0.85)), 
-
                         url('https://images.unsplash.com/photo-1578916171728-46686eac8d58?q=80&w=1920&auto=format&fit=crop') no-repeat center center fixed; 
-
             background-size: cover;
-
         }
-
         .formulario { background: rgba(255, 255, 255, 0.95); padding: 15px; border-radius: 8px; border: 1px solid #ccc; margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-
         table { width: 100%; border-collapse: collapse; background: rgba(255, 255, 255, 0.95); margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-radius: 8px; overflow: hidden; }
-
         th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
-
         th { background-color: #f8f9fa; }
-
         .panel { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 20px; }
-
         .seccion { flex: 1; background: rgba(255, 255, 255, 0.95); padding: 20px; border-radius: 8px; border: 1px solid #ddd; min-width: 300px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-
         
-
         h2 { color: #333; text-shadow: 1px 1px 2px rgba(255,255,255,0.8); }
-
         button { padding: 8px 15px; cursor: pointer; color: white; border: none; border-radius: 4px; margin: 2px; transition: opacity 0.2s; }
-
         button:hover { opacity: 0.9; }
-
         .btn-add { background-color: #4CAF50; }
-
         .btn-confirm { background-color: #FF9800; }
-
         .btn-cerrar { background-color: #d32f2f; }
-
         .btn-edit { background-color: #2196F3; }
-
         .btn-remove { background-color: #f44336; }
-
         input { padding: 6px; border: 1px solid #ccc; border-radius: 4px; background: white; }
-
         .lista-scroll { max-height: 150px; overflow-y: auto; background: rgba(250, 250, 250, 0.9); padding: 10px; border-radius: 4px; border: 1px solid #eee; list-style: none; }
-
         .lista-scroll li { margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #ddd; padding-bottom: 5px; }
-
         .detalles-venta { font-size: 11px; color: #666; display: block; font-style: italic; }
 
+        /* Estilos para Modales (Reemplazo de alert, confirm, prompt) */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background: white; padding: 20px; border-radius: 8px; min-width: 300px; max-width: 400px; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .modal-content h3 { margin-top: 0; color: #333; }
+        .modal-content p { color: #555; margin-bottom: 20px; }
+        .modal-actions { display: flex; justify-content: center; gap: 10px; margin-top: 15px; }
+        .modal-input-group { display: flex; flex-direction: column; gap: 10px; text-align: left; margin-bottom: 15px; }
+        .modal-input-group label { font-size: 12px; font-weight: bold; color: #666; }
+        .modal-input-group input { width: 100%; box-sizing: border-box; }
     </style>
 
-
-
     <!-- CONEXIÓN COMPATIBLE CON FIREBASE -->
-
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
-
 </head>
-
 <body>
 
-
-
     <h2>Gestión de Almacén (Conectado)</h2>
-
     
-
     <div class="formulario">
-
         <input type="text" id="busqueda" placeholder="Buscar producto..." onkeyup="renderizar()">
-
     </div>
-
     
-
     <div class="formulario">
-
         <input type="text" id="prod" placeholder="Nombre">
-
         <input type="number" id="costo" placeholder="Costo ($)" style="width: 90px;">
-
         <input type="number" id="stock" placeholder="Stock" style="width: 70px;">
-
         <input type="number" id="porcentaje" value="30" style="width: 60px;" placeholder="%">
-
         <input type="file" id="fotoInput" accept="image/*">
-
         <button class="btn-add" onclick="agregar()">Agregar Producto</button>
-
     </div>
-
-
 
     <table id="tablaInventario">
-
         <thead>
-
             <tr>
-
                 <th>Foto</th>
-
                 <th>Producto</th>
-
                 <th>Costo</th>
-
                 <th>%</th>
-
                 <th>Precio Venta</th>
-
                 <th>Stock</th>
-
                 <th>Acciones</th>
-
             </tr>
-
         </thead>
-
         <tbody id="cuerpoTabla"></tbody>
-
     </table>
 
-
-
     <div class="panel">
-
         <div class="seccion">
-
             <h3>Carrito Actual</h3>
-
             <ul id="listaCarrito" style="list-style: none; padding-left: 0;"></ul>
-
-            <p><strong>Total: $<span id="totalCarrito">0.00</span></strong></p>
-
+            <p><strong>Total a cobrar: $<span id="totalCarrito">0.00</span></strong></p>
             <button class="btn-confirm" onclick="confirmarVenta()">Confirmar Venta</button>
-
         </div>
-
         
-
         <div class="seccion">
-
-            <h3>Balance</h3>
-
-            <p>Hoy: <strong id="recaudadoHoy">$0.00</strong></p>
-
+            <h3>Balance y Ganancias</h3>
+            <!-- SECCIÓN NUEVA: Ganancias añadidas -->
+            <div style="background: #f1f8e9; padding: 10px; border-radius: 5px; border: 1px solid #c5e1a5; margin-bottom: 10px;">
+                <p style="margin: 5px 0;">Recaudación Hoy: <strong id="recaudadoHoy">$0.00</strong></p>
+                <p style="margin: 5px 0; color: #2e7d32;">Ganancia Hoy: <strong id="gananciaHoy">$0.00</strong></p>
+            </div>
             
-
             <h4>Ventas de Hoy (Desglose):</h4>
-
             <ul id="listaVentasHoy" class="lista-scroll"></ul>
-
             <hr>
-
             
-
-            <p>Mes: <strong id="totalMes">$0.00</strong></p>
-
+            <div style="background: #e3f2fd; padding: 10px; border-radius: 5px; border: 1px solid #90caf9; margin-bottom: 10px; margin-top: 10px;">
+                <p style="margin: 5px 0;">Recaudación Mes: <strong id="totalMes">$0.00</strong></p>
+                <p style="margin: 5px 0; color: #1565c0;">Ganancia Mes: <strong id="gananciaMes">$0.00</strong></p>
+            </div>
             <button class="btn-cerrar" onclick="cerrarDia()">Cerrar Día</button>
-
             <button style="background:#555" onclick="limpiarHistorial()">Borrar Historial</button>
-
             
-
             <h4>Historial Cierres</h4>
-
             <ul id="listaCierres" class="lista-scroll"></ul>
-
         </div>
-
     </div>
 
+    <!-- Modal Alerta/Confirmación -->
+    <div id="msgModal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 id="msgTitle">Atención</h3>
+            <p id="msgText"></p>
+            <div class="modal-actions">
+                <button id="msgBtnCancel" class="btn-cerrar" onclick="cerrarModalMsg()">Cancelar</button>
+                <button id="msgBtnOk" class="btn-add">Aceptar</button>
+            </div>
+        </div>
+    </div>
 
+    <!-- Modal Editar Producto -->
+    <div id="editProdModal" class="modal-overlay">
+        <div class="modal-content">
+            <h3>Editar Producto</h3>
+            <div class="modal-input-group">
+                <label>Costo ($)</label>
+                <input type="number" id="editCosto" step="0.01">
+                <label>Porcentaje Ganancia (%)</label>
+                <input type="number" id="editPorcentaje">
+                <label>Stock Disponible</label>
+                <input type="number" id="editStock">
+            </div>
+            <div class="modal-actions">
+                <button class="btn-cerrar" onclick="cerrarModalEditProd()">Cancelar</button>
+                <button class="btn-add" id="btnGuardarProd">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Editar Monto (Ventas/Cierres) -->
+    <div id="editMontoModal" class="modal-overlay">
+        <div class="modal-content">
+            <h3>Corregir Monto</h3>
+            <div class="modal-input-group">
+                <label>Nuevo Total ($)</label>
+                <input type="number" id="editMontoNuevo" step="0.01">
+            </div>
+            <div class="modal-actions">
+                <button class="btn-cerrar" onclick="cerrarModalEditMonto()">Cancelar</button>
+                <button class="btn-add" id="btnGuardarMonto">Guardar</button>
+            </div>
+        </div>
+    </div>
 
     <script>
-
         // CONFIGURACIÓN DE FIREBASE LAURA
-
         const firebaseConfig = {
-
             apiKey: "AIzaSyA2k6dGz5LHnyW_RnzZNQQbdsYsOtKGBFM",
-
             authDomain: "mi-almacen-be016.firebaseapp.com",
-
             databaseURL: "https://mi-almacen-be016-default-rtdb.firebaseio.com",
-
             projectId: "mi-almacen-be016",
-
             storageBucket: "mi-almacen-be016.firebasestorage.app",
-
             messagingSenderId: "180812846512",
-
             appId: "1:180812846512:web:86e11643678392a9be7275",
-
             measurementId: "G-0M16DBWTSD"
-
         };
 
-
-
         // Inicializar Firebase
-
         firebase.initializeApp(firebaseConfig);
-
         const db = firebase.database();
 
-
-
         let inventario = [];
-
         let ventasHoy = [];
-
         let historial = [];
-
         let carrito = [];
 
-
-
         // Escuchar base de datos en tiempo real (Inventario)
-
         db.ref('almacen').on('value', (snapshot) => {
-
             inventario = snapshot.val() || [];
-
             renderizar();
-
         });
-
-
 
         // Escuchar base de datos en tiempo real (Ventas de Hoy)
-
         db.ref('ventasHoy').on('value', (snapshot) => {
-
             let data = snapshot.val() || [];
-
-            ventasHoy = data.map(v => typeof v === 'number' ? { total: v, descripcion: "Venta manual" } : v);
-
+            ventasHoy = data.map(v => typeof v === 'number' ? { total: v, ganancia: 0, descripcion: "Venta manual" } : v);
             actualizarBalance();
-
         });
-
-
 
         // Escuchar base de datos en tiempo real (Historial de Cierres)
-
         db.ref('historial').on('value', (snapshot) => {
-
             let data = snapshot.val() || [];
-
-            historial = data.map(h => typeof h.descripcion === 'undefined' ? { ...h, descripcion: "Sin descripción guardada" } : h);
-
+            historial = data.map(h => typeof h.descripcion === 'undefined' ? { ...h, ganancia: 0, descripcion: "Sin descripción guardada" } : h);
             actualizarBalance();
-
         });
 
+        // --- SISTEMA DE MODALES (REEMPLAZO DE ALERT/CONFIRM/PROMPT) ---
+        let confirmCallback = null;
 
+        function mostrarAlerta(mensaje) {
+            document.getElementById('msgTitle').innerText = "Aviso";
+            document.getElementById('msgText').innerText = mensaje;
+            document.getElementById('msgBtnCancel').style.display = 'none';
+            document.getElementById('msgModal').style.display = 'flex';
+            
+            document.getElementById('msgBtnOk').onclick = cerrarModalMsg;
+        }
+
+        function mostrarConfirmacion(mensaje, callback) {
+            document.getElementById('msgTitle').innerText = "Confirmación";
+            document.getElementById('msgText').innerText = mensaje;
+            document.getElementById('msgBtnCancel').style.display = 'inline-block';
+            document.getElementById('msgModal').style.display = 'flex';
+            
+            document.getElementById('msgBtnOk').onclick = function() {
+                cerrarModalMsg();
+                if(callback) callback();
+            };
+        }
+
+        function cerrarModalMsg() {
+            document.getElementById('msgModal').style.display = 'none';
+        }
+
+        function cerrarModalEditProd() { document.getElementById('editProdModal').style.display = 'none'; }
+        function cerrarModalEditMonto() { document.getElementById('editMontoModal').style.display = 'none'; }
+
+        // --- LÓGICA PRINCIPAL ---
 
         function renderizar() {
-
             let tbody = document.getElementById('cuerpoTabla');
-
             let busqueda = document.getElementById('busqueda').value.toLowerCase();
-
             tbody.innerHTML = '';
-
             
-
             if (inventario.length === 0) {
-
                 tbody.innerHTML = '<tr><td colspan="7" style="color: #888; padding: 20px;">No hay productos cargados en el inventario.</td></tr>';
-
             } else {
-
                 inventario.forEach((item, index) => {
-
                     if (item && item.nombre && item.nombre.toLowerCase().includes(busqueda)) {
-
                         let precioVenta = (parseFloat(item.costo) * (1 + parseFloat(item.porcentaje) / 100)).toFixed(2);
-
                         let fotoHTML = item.foto ? `<img src="${item.foto}" width="50" style="border-radius:4px;">` : "Sin foto";
 
-
-
                         tbody.innerHTML += `<tr>
-
                             <td>${fotoHTML}</td>
-
                             <td>${item.nombre}</td>
-
                             <td>$${parseFloat(item.costo).toFixed(2)}</td>
-
                             <td>${item.porcentaje}%</td>
-
                             <td><strong>$${precioVenta}</strong></td>
-
                             <td>${item.stock}</td>
-
                             <td>
-
                                 <button class="btn-edit" onclick="editar(${index})">Editar</button>
-
                                 <button class="btn-remove" onclick="eliminarProducto(${index})">X</button>
-
                                 <input type="number" id="cant-${index}" value="1" min="1" style="width: 40px;">
-
                                 <button class="btn-add" onclick="agregarAlCarrito(${index})">Agregar</button>
-
                             </td>
-
                         </tr>`;
-
                     }
-
                 });
-
             }
-
         }
-
-
 
         function agregar() {
-
             let nombre = document.getElementById('prod').value;
-
             let costo = parseFloat(document.getElementById('costo').value);
-
             let stock = parseInt(document.getElementById('stock').value);
-
             let porcentaje = parseFloat(document.getElementById('porcentaje').value) || 0;
-
             let fileInput = document.getElementById('fotoInput');
 
-
-
-            if (!nombre || isNaN(costo) || isNaN(stock)) return alert("Completa los campos básicos (Nombre, Costo y Stock)");
-
-
+            if (!nombre || isNaN(costo) || isNaN(stock)) {
+                return mostrarAlerta("Completa los campos básicos (Nombre, Costo y Stock)");
+            }
 
             function guardarObjeto(fotoData) {
-
                 inventario.push({nombre, costo, stock, porcentaje, foto: fotoData});
-
                 db.ref('almacen').set(inventario);
-
                 document.getElementById('prod').value = '';
-
                 document.getElementById('costo').value = '';
-
                 document.getElementById('stock').value = '';
-
                 document.getElementById('porcentaje').value = '30';
-
                 document.getElementById('fotoInput').value = '';
-
             }
-
-
 
             if (fileInput.files && fileInput.files[0]) {
-
                 let reader = new FileReader();
-
                 reader.onload = function(e) { guardarObjeto(e.target.result); };
-
                 reader.readAsDataURL(fileInput.files[0]);
-
             } else {
-
                 guardarObjeto(null);
-
             }
-
         }
-
-
 
         function eliminarProducto(index) {
-
-            if (confirm("¿Eliminar producto definitivamente?")) {
-
+            mostrarConfirmacion("¿Eliminar producto definitivamente?", function() {
                 inventario.splice(index, 1);
-
                 db.ref('almacen').set(inventario);
-
-            }
-
+            });
         }
-
-
 
         function editar(index) {
-
-            let nCosto = prompt("Nuevo Costo:", inventario[index].costo);
-
-            let nPorcentaje = prompt("Nuevo Porcentaje de ganancia (%):", inventario[index].porcentaje);
-
-            let nStock = prompt("Nuevo Stock:", inventario[index].stock);
-
+            document.getElementById('editCosto').value = inventario[index].costo;
+            document.getElementById('editPorcentaje').value = inventario[index].porcentaje;
+            document.getElementById('editStock').value = inventario[index].stock;
             
-
-            if (nCosto !== null && nPorcentaje !== null && nStock !== null) {
-
-                inventario[index].costo = parseFloat(nCosto) || 0;
-
-                inventario[index].porcentaje = parseFloat(nPorcentaje) || 0;
-
-                inventario[index].stock = parseInt(nStock) || 0;
-
-                db.ref('almacen').set(inventario);
-
-            }
-
+            document.getElementById('editProdModal').style.display = 'flex';
+            
+            document.getElementById('btnGuardarProd').onclick = function() {
+                let nCosto = parseFloat(document.getElementById('editCosto').value);
+                let nPorcentaje = parseFloat(document.getElementById('editPorcentaje').value);
+                let nStock = parseInt(document.getElementById('editStock').value);
+                
+                if (!isNaN(nCosto) && !isNaN(nPorcentaje) && !isNaN(nStock)) {
+                    inventario[index].costo = nCosto;
+                    inventario[index].porcentaje = nPorcentaje;
+                    inventario[index].stock = nStock;
+                    db.ref('almacen').set(inventario);
+                    cerrarModalEditProd();
+                } else {
+                    mostrarAlerta("Ingresa valores numéricos válidos.");
+                }
+            };
         }
-
-
 
         function agregarAlCarrito(index) {
-
             let cantInput = document.getElementById(`cant-${index}`);
-
             let cant = parseInt(cantInput.value);
-
             let prod = inventario[index];
-
-            let precioVenta = (parseFloat(prod.costo) * (1 + parseFloat(prod.porcentaje) / 100));
-
             
-
-            if (isNaN(cant) || cant <= 0) return alert("Ingrese una cantidad válida");
-
+            let costoUnitario = parseFloat(prod.costo);
+            let precioVenta = costoUnitario * (1 + parseFloat(prod.porcentaje) / 100);
+            let gananciaUnitaria = precioVenta - costoUnitario;
+            
+            if (isNaN(cant) || cant <= 0) return mostrarAlerta("Ingrese una cantidad válida");
             let yaEnCarrito = carrito.filter(item => item.index === index).reduce((sum, item) => sum + item.cant, 0);
 
-
-
             if ((cant + yaEnCarrito) <= prod.stock) {
-
-                carrito.push({ index, nombre: prod.nombre, cant, total: precioVenta * cant });
-
+                // Guardamos el total de venta y el total de ganancia para este ítem
+                carrito.push({ 
+                    index, 
+                    nombre: prod.nombre, 
+                    cant, 
+                    total: precioVenta * cant,
+                    ganancia: gananciaUnitaria * cant 
+                });
                 actualizarCarrito();
-
                 cantInput.value = 1;
-
             } else { 
-
-                alert("Stock insuficiente en inventario."); 
-
+                mostrarAlerta("Stock insuficiente en inventario."); 
             }
-
         }
-
-
 
         function actualizarCarrito() {
-
             let lista = document.getElementById('listaCarrito');
-
             let suma = 0;
-
             lista.innerHTML = "";
-
             carrito.forEach((item, i) => {
-
-                lista.innerHTML += `<li style="margin-bottom: 5px;">${item.nombre} x${item.cant} ($${item.total.toFixed(2)}) 
-
-                                    <button class="btn-remove" style="padding:2px 6px; font-size:10px;" onclick="carrito.splice(${i},1);actualizarCarrito()">X</button></li>`;
-
+                lista.innerHTML += `<li style="margin-bottom: 5px; font-size: 14px;">
+                    ${item.nombre} x${item.cant} ($${item.total.toFixed(2)}) 
+                    <button class="btn-remove" style="padding:2px 6px; font-size:10px;" onclick="carrito.splice(${i},1);actualizarCarrito()">X</button>
+                </li>`;
                 suma += item.total;
-
             });
-
             document.getElementById('totalCarrito').innerText = suma.toFixed(2);
-
         }
-
-
 
         function confirmarVenta() {
-
-            if (carrito.length === 0) return alert("El carrito está vacío");
-
+            if (carrito.length === 0) return mostrarAlerta("El carrito está vacío");
             
-
             carrito.forEach(item => {
-
                 inventario[item.index].stock -= item.cant;
-
             });
-
             
-
             let descripcionVenta = carrito.map(item => `${item.cant}x ${item.nombre}`).join(', ');
-
             let total = carrito.reduce((sum, item) => sum + item.total, 0);
-
+            let gananciaTotal = carrito.reduce((sum, item) => sum + item.ganancia, 0);
             
-
-            ventasHoy.push({ total: total, descripcion: descripcionVenta });
-
+            // Guardamos la venta con su ganancia
+            ventasHoy.push({ total: total, ganancia: gananciaTotal, descripcion: descripcionVenta });
             
-
             db.ref('almacen').set(inventario);
-
             db.ref('ventasHoy').set(ventasHoy);
-
             
-
             carrito = [];
-
             actualizarCarrito();
-
         }
-
-
 
         function cerrarDia() {
-
-            if (ventasHoy.length === 0) return alert("No hay ventas registradas el día de hoy.");
-
+            if (ventasHoy.length === 0) return mostrarAlerta("No hay ventas registradas el día de hoy.");
             
-
-            let totalDia = ventasHoy.reduce((a, b) => a + (b.total || 0), 0);
-
-            let todoLoVendidoHoy = ventasHoy.map(v => v.descripcion).join(' | ');
-
-            
-
-            historial.push({ 
-
-                fecha: new Date().toLocaleDateString(), 
-
-                total: totalDia,
-
-                descripcion: todoLoVendidoHoy
-
+            mostrarConfirmacion("¿Seguro que deseas cerrar el día? Las ventas pasarán al historial.", function() {
+                let totalDia = ventasHoy.reduce((a, b) => a + (b.total || 0), 0);
+                let gananciaDia = ventasHoy.reduce((a, b) => a + (b.ganancia || 0), 0);
+                let todoLoVendidoHoy = ventasHoy.map(v => v.descripcion).join(' | ');
+                
+                historial.push({ 
+                    fecha: new Date().toLocaleDateString(), 
+                    total: totalDia,
+                    ganancia: gananciaDia,
+                    descripcion: todoLoVendidoHoy
+                });
+                
+                db.ref('historial').set(historial);
+                db.ref('ventasHoy').remove();
+                carrito = [];
+                actualizarCarrito();
             });
-
-            
-
-            db.ref('historial').set(historial);
-
-            db.ref('ventasHoy').remove();
-
-            carrito = [];
-
-            actualizarCarrito();
-
         }
-
-
 
         function limpiarHistorial() {
-
-            if (confirm("¿Seguro que deseas borrar por completo el historial de cierres?")) {
-
+            mostrarConfirmacion("¿Seguro que deseas borrar por completo el historial de cierres? Esta acción no se puede deshacer.", function() {
                 db.ref('historial').remove();
-
-            }
-
+            });
         }
-
-
 
         function actualizarBalance() {
-
             let totalHoy = ventasHoy.reduce((a, b) => a + (b.total || 0), 0);
-
+            let gananciaHoy = ventasHoy.reduce((a, b) => a + (b.ganancia || 0), 0);
+            
             let totalMes = historial.reduce((sum, item) => sum + (item.total || 0), 0);
-
+            let gananciaMes = historial.reduce((sum, item) => sum + (item.ganancia || 0), 0);
             
-
             document.getElementById('recaudadoHoy').innerText = "$" + totalHoy.toFixed(2);
-
+            document.getElementById('gananciaHoy').innerText = "$" + gananciaHoy.toFixed(2);
+            
             document.getElementById('totalMes').innerText = "$" + totalMes.toFixed(2);
-
+            document.getElementById('gananciaMes').innerText = "$" + gananciaMes.toFixed(2);
             
-
             let listaVentas = document.getElementById('listaVentasHoy');
-
             listaVentas.innerHTML = "";
-
             if (ventasHoy.length === 0) {
-
-                listaVentas.innerHTML = "<li>Sin ventas aún</li>";
-
+                listaVentas.innerHTML = "<li style='color:#888; border:none;'>Sin ventas aún</li>";
             } else {
-
                 ventasHoy.forEach((venta, i) => {
-
                     if (venta) {
-
+                        let gVenta = venta.ganancia ? `(Ganancia: $${venta.ganancia.toFixed(2)})` : '';
                         listaVentas.innerHTML += `<li>
-
                             <div>
-
-                                <strong>Venta #${i + 1}: $${(venta.total || 0).toFixed(2)}</strong>
-
+                                <strong>Venta #${i + 1}: $${(venta.total || 0).toFixed(2)}</strong> <span style="color: #2e7d32; font-size:11px;">${gVenta}</span>
                                 <span class="detalles-venta">${venta.descripcion || 'Venta manual'}</span>
-
                             </div>
-
                             <div style="flex-shrink: 0;">
-
-                                <button class="btn-edit" style="padding:2px 5px; font-size:11px;" onclick="editarVentaHoy(${i})">✏️</button>
-
+                                <button class="btn-edit" style="padding:2px 5px; font-size:11px;" onclick="abrirEditarMonto('venta', ${i})">✏️</button>
                                 <button class="btn-remove" style="padding:2px 5px; font-size:11px;" onclick="eliminarVentaHoy(${i})">X</button>
-
                             </div>
-
                         </li>`;
-
                     }
-
                 });
-
             }
-
             
-
             let listaCierres = document.getElementById('listaCierres');
-
             listaCierres.innerHTML = "";
-
             if (historial.length === 0) {
-
-                listaCierres.innerHTML = "<li>No hay cierres guardados</li>";
-
+                listaCierres.innerHTML = "<li style='color:#888; border:none;'>No hay cierres guardados</li>";
             } else {
-
                 historial.forEach((c, i) => {
-
                     if (c) {
-
+                        let gCierre = c.ganancia ? `(Ganancia: $${c.ganancia.toFixed(2)})` : '';
                         listaCierres.innerHTML += `<li>
-
                             <div>
-
-                                <span><strong>${c.fecha}: $${(c.total || 0).toFixed(2)}</strong></span>
-
+                                <span><strong>${c.fecha}: $${(c.total || 0).toFixed(2)}</strong></span> <span style="color: #1565c0; font-size:11px;">${gCierre}</span>
                                 <span class="detalles-venta" style="color:#2196F3;">Vendido: ${c.descripcion || 'Sin detalles'}</span>
-
                             </div>
-
-                            <div>
-
-                                <button class="btn-edit" style="padding:2px 5px; font-size:11px;" onclick="editarCierre(${i})">Editar</button>
-
+                            <div style="flex-shrink: 0;">
+                                <button class="btn-edit" style="padding:2px 5px; font-size:11px;" onclick="abrirEditarMonto('cierre', ${i})">✏️</button>
                                 <button class="btn-remove" style="padding:2px 5px; font-size:11px;" onclick="eliminarCierre(${i})">X</button>
-
                             </div></li>`;
-
                     }
-
                 });
-
             }
-
         }
 
+        // --- Ediciones de Montos usando Modales ---
+        let editMontoIndex = -1;
+        let editMontoTipo = '';
 
-
-        function editarVentaHoy(index) {
-
-            let nuevoMonto = prompt("Corregir monto de esta venta:", ventasHoy[index].total);
-
-            if (nuevoMonto !== null) {
-
-                let montoFloat = parseFloat(nuevoMonto);
-
-                if (!isNaN(montoFloat) && montoFloat >= 0) {
-
-                    ventasHoy[index].total = montoFloat;
-
-                    db.ref('ventasHoy').set(ventasHoy);
-
+        function abrirEditarMonto(tipo, index) {
+            editMontoTipo = tipo;
+            editMontoIndex = index;
+            
+            let montoActual = 0;
+            if (tipo === 'venta') montoActual = ventasHoy[index].total;
+            if (tipo === 'cierre') montoActual = historial[index].total;
+            
+            document.getElementById('editMontoNuevo').value = montoActual;
+            document.getElementById('editMontoModal').style.display = 'flex';
+            
+            document.getElementById('btnGuardarMonto').onclick = function() {
+                let nuevoMonto = parseFloat(document.getElementById('editMontoNuevo').value);
+                if (!isNaN(nuevoMonto) && nuevoMonto >= 0) {
+                    if (editMontoTipo === 'venta') {
+                        ventasHoy[editMontoIndex].total = nuevoMonto;
+                        db.ref('ventasHoy').set(ventasHoy);
+                    } else if (editMontoTipo === 'cierre') {
+                        historial[editMontoIndex].total = nuevoMonto;
+                        db.ref('historial').set(historial);
+                    }
+                    cerrarModalEditMonto();
                 } else {
-
-                    alert("Por favor, ingrese un número válido.");
-
+                    mostrarAlerta("Por favor, ingrese un número válido.");
                 }
-
-            }
-
+            };
         }
-
-
 
         function eliminarVentaHoy(index) {
-
-            if (confirm("¿Eliminar esta venta del total de hoy?")) {
-
+            mostrarConfirmacion("¿Eliminar esta venta del total de hoy?", function() {
                 ventasHoy.splice(index, 1);
-
                 db.ref('ventasHoy').set(ventasHoy);
-
-            }
-
+            });
         }
 
-
-
-        function editarCierre(index) {
-
-            let nuevoMonto = prompt("Corregir monto del cierre:", historial[index].total);
-
-            if (nuevoMonto !== null) {
-
-                historial[index].total = parseFloat(nuevoMonto) || 0;
-
-                db.ref('historial').set(historial);
-
-            }
-
-        }
-
-
-
-       function eliminarCierre(index) {
-            if (confirm("¿Eliminar este registro de cierre?")) {
+        function eliminarCierre(index) {
+            mostrarConfirmacion("¿Eliminar este registro de cierre?", function() {
                 historial.splice(index, 1);
                 db.ref('historial').set(historial);
-            }
-        }
-
-        function calcularYMostrarGanancias() { 
-            let totalHoy = ventasHoy.reduce((a, b) => a + (b.total || 0), 0);
-            document.getElementById('recaudadoHoy').innerText = "$" + totalHoy.toFixed(2);
-            
-            let totalMes = historial.reduce((sum, item) => sum + (item.total || 0), 0);
-            document.getElementById('totalMes').innerText = "$" + totalMes.toFixed(2);
+            });
         }
 
     </script>
-
 </body>
-
-</html>  
-
+</html>
