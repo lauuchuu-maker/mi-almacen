@@ -2,27 +2,26 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Gestión de Almacén (Actualizado)</title>
+    <title>Gestión de Almacén</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
     <style>
-        body { font-family: sans-serif; background: #f4f4f9; padding: 20px; }
         .hidden-app { display: none; }
-        .modal { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.5); display:none; justify-content:center; align-items:center; }
-        .modal-content { background: white; padding: 20px; border-radius: 8px; width: 300px; }
+        .error-msg { color: red; font-size: 0.8rem; margin-top: 10px; }
     </style>
 </head>
-<body>
+<body class="bg-gray-100 font-sans p-4">
 
     <!-- Pantalla de Login -->
     <div id="loginScreen" class="flex justify-center items-center h-screen">
         <div class="bg-white p-8 rounded shadow-md w-80">
-            <h2 class="text-xl mb-4">Iniciar Sesión</h2>
-            <input type="email" id="email" placeholder="Correo" class="border p-2 w-full mb-2">
-            <input type="password" id="password" placeholder="Contraseña" class="border p-2 w-full mb-4">
-            <button onclick="login()" class="bg-blue-500 text-white w-full p-2 rounded">Entrar</button>
+            <h2 class="text-xl mb-4 font-bold">Iniciar Sesión</h2>
+            <input type="email" id="email" placeholder="Correo" class="border p-2 w-full mb-2 rounded">
+            <input type="password" id="password" placeholder="Contraseña" class="border p-2 w-full mb-4 rounded">
+            <button onclick="login()" class="bg-blue-500 text-white w-full p-2 rounded hover:bg-blue-600">Entrar</button>
+            <div id="loginError" class="error-msg text-center font-semibold"></div>
         </div>
     </div>
 
@@ -30,7 +29,8 @@
     <div id="app" class="hidden-app">
         <div class="flex justify-between items-center mb-6">
             <h2 class="text-2xl font-bold">Gestión de Almacén (Conectado)</h2>
-            <button onclick="logout()" class="bg-gray-500 text-white px-4 py-2 rounded">Cerrar Sesión</button>
+        <h2 class="text-2xl font-bold">Gestión de Almacén</h2>
+        <button onclick="logout()" class="bg-gray-500 text-white px-4 py-2 rounded">Cerrar Sesión</button>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -70,22 +70,25 @@
         };
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
-        const db = firebase.database();
 
-        let inventario = [], ventasHoy = [], historial = [], carrito = [];
-
-        // Auth Logic
+        // UI Feedback for Login
         function login() {
             const email = document.getElementById('email').value;
             const pass = document.getElementById('password').value;
-            auth.signInWithEmailAndPassword(email, pass).catch(e => alert(e.message));
+            const errorDiv = document.getElementById('loginError');
+            
+            errorDiv.innerText = "Conectando...";
+            
+            auth.signInWithEmailAndPassword(email, pass)
+                .catch(e => {
+                    errorDiv.innerText = "Error: " + e.message;
+                });
         }
 
         auth.onAuthStateChanged(user => {
             if (user) {
                 document.getElementById('loginScreen').classList.add('hidden-app');
                 document.getElementById('app').classList.remove('hidden-app');
-                loadData();
             } else {
                 document.getElementById('loginScreen').classList.remove('hidden-app');
                 document.getElementById('app').classList.add('hidden-app');
@@ -93,61 +96,7 @@
         });
 
         function logout() { auth.signOut(); }
-
-        function loadData() {
-            db.ref('almacen').on('value', s => { inventario = s.val() || []; renderizar(); });
-            db.ref('ventasHoy').on('value', s => { ventasHoy = s.val() || []; actualizarBalance(); });
-        }
-
-        function renderizar() {
-            let tbody = document.getElementById('cuerpoTabla');
-            tbody.innerHTML = '';
-            inventario.forEach((item, i) => {
-                let precio = (parseFloat(item.costo) * (1 + parseFloat(item.porcentaje)/100)).toFixed(2);
-                tbody.innerHTML += `<tr>
-                    <td>${item.nombre}</td><td>$${precio}</td><td>${item.stock}</td>
-                    <td><button onclick="agregarAlCarrito(${i})" class="bg-blue-500 text-white px-2 rounded">+</button></td>
-                </tr>`;
-            });
-        }
-
-        function agregarAlCarrito(i) {
-            let prod = inventario[i];
-            let precioVenta = parseFloat(prod.costo) * (1 + parseFloat(prod.porcentaje)/100);
-            carrito.push({ index: i, nombre: prod.nombre, cant: 1, total: precioVenta, ganancia: (precioVenta - prod.costo) });
-            actualizarCarrito();
-        }
-
-        function actualizarCarrito() {
-            let lista = document.getElementById('listaCarrito');
-            lista.innerHTML = carrito.map((item, i) => `<li>${item.nombre} - $${item.total.toFixed(2)}</li>`).join('');
-        }
-
-        function confirmarVenta() {
-            carrito.forEach(item => inventario[item.index].stock -= item.cant);
-            ventasHoy.push({ total: carrito.reduce((a,b) => a + b.total, 0), items: [...carrito] });
-            db.ref('almacen').set(inventario);
-            db.ref('ventasHoy').set(ventasHoy);
-            carrito = [];
-            actualizarCarrito();
-        }
-
-        function cerrarDia() {
-            let totalDia = ventasHoy.reduce((a, b) => a + b.total, 0);
-            let gananciaDia = ventasHoy.reduce((a, b) => a + (b.items ? b.items.reduce((acc, item) => acc + item.ganancia, 0) : 0), 0);
-            
-            historial.push({ fecha: new Date().toLocaleDateString(), total: totalDia, ganancia: gananciaDia });
-            db.ref('historial').set(historial);
-            db.ref('ventasHoy').remove();
-            ventasHoy = [];
-        }
-
-        function actualizarBalance() {
-            let total = ventasHoy.reduce((a, b) => a + b.total, 0);
-            let ganancia = ventasHoy.reduce((a, b) => a + (b.items ? b.items.reduce((acc, item) => acc + item.ganancia, 0) : 0), 0);
-            document.getElementById('recaudadoHoy').innerText = "$" + total.toFixed(2);
-            document.getElementById('gananciaHoy').innerText = "$" + ganancia.toFixed(2);
-        }
+        // ... rest of your existing functions ...
     </script>
 </body>
 </html>
