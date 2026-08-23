@@ -1,368 +1,367 @@
-<script>
-    // CONFIGURACIÓN DE FIREBASE
-    const firebaseConfig = {
-        apiKey: "AIzaSyA2k6dGz5LHnyW_RnzZNQQbdsYsOtKGBFM",
-        authDomain: "mi-almacen-be016.firebaseapp.com",
-        databaseURL: "https://mi-almacen-be016-default-rtdb.firebaseio.com",
-        projectId: "mi-almacen-be016",
-        storageBucket: "mi-almacen-be016.firebasestorage.app",
-        messagingSenderId: "180812846512",
-        appId: "1:180812846512:web:86e11643678392a9be7275",
-        measurementId: "G-0M16DBWTSD"
+// CONFIGURACIÓN DE FIREBASE
+const firebaseConfig = {
+    apiKey: "AIzaSyA2k6dGz5LHnyW_RnzZNQQbdsYsOtKGBFM",
+    authDomain: "mi-almacen-be016.firebaseapp.com",
+    databaseURL: "https://mi-almacen-be016-default-rtdb.firebaseio.com",
+    projectId: "mi-almacen-be016",
+    storageBucket: "mi-almacen-be016.firebasestorage.app",
+    messagingSenderId: "180812846512",
+    appId: "1:180812846512:web:86e11643678392a9be7275",
+    measurementId: "G-0M16DBWTSD"
+};
+
+// Inicializar Firebase
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const auth = firebase.auth();
+
+let inventario = [];
+let ventasHoy = [];
+let historial = [];
+let carrito = [];
+
+// --- AUTENTICACIÓN ---
+auth.onAuthStateChanged(user => {
+    if (user) {
+        document.getElementById('login-overlay').style.display = 'none';
+        document.getElementById('app-content').style.display = 'block';
+    } else {
+        document.getElementById('login-overlay').style.display = 'flex';
+        document.getElementById('app-content').style.display = 'none';
+    }
+});
+
+function iniciarSesion() {
+    const email = document.getElementById('loginEmail').value;
+    const pass = document.getElementById('loginPass').value;
+    if (!email || !pass) return mostrarAlerta("Por favor, ingresa tu correo y contraseña.");
+    
+    auth.signInWithEmailAndPassword(email, pass).catch(error => {
+        mostrarAlerta("Error al iniciar sesión. Revisa tus credenciales.");
+        console.error(error);
+    });
+}
+
+function cerrarSesion() {
+    auth.signOut();
+    document.getElementById('loginEmail').value = '';
+    document.getElementById('loginPass').value = '';
+}
+
+// --- REALTIME DATABASE LISTENERS ---
+db.ref('almacen').on('value', (snapshot) => {
+    let val = snapshot.val();
+    if (!val) {
+        inventario = [];
+    } else if (Array.isArray(val)) {
+        inventario = val.filter(item => item !== null && item !== undefined);
+    } else if (typeof val === 'object') {
+        inventario = Object.values(val);
+    }
+    renderizar();
+});
+
+db.ref('ventasHoy').on('value', (snapshot) => {
+    let data = snapshot.val() || [];
+    let arrayData = Array.isArray(data) ? data : Object.values(data);
+    ventasHoy = arrayData.map(v => typeof v === 'number' ? { total: v, ganancia: 0, descripcion: "Venta manual" } : v);
+    actualizarBalance();
+});
+
+db.ref('historial').on('value', (snapshot) => {
+    let data = snapshot.val() || [];
+    let arrayData = Array.isArray(data) ? data : Object.values(data);
+    historial = arrayData.map(h => typeof h.descripcion === 'undefined' ? { ...h, ganancia: 0, descripcion: "Sin descripción guardada" } : h);
+    actualizarBalance();
+});
+
+// --- MODALES ---
+function mostrarAlerta(mensaje) {
+    document.getElementById('msgTitle').innerText = "Aviso";
+    document.getElementById('msgText').innerText = mensaje;
+    document.getElementById('msgBtnCancel').style.display = 'none';
+    document.getElementById('msgModal').style.display = 'flex';
+    document.getElementById('msgBtnOk').onclick = cerrarModalMsg;
+}
+
+function mostrarConfirmacion(mensaje, callback) {
+    document.getElementById('msgTitle').innerText = "Confirmación";
+    document.getElementById('msgText').innerText = mensaje;
+    document.getElementById('msgBtnCancel').style.display = 'inline-block';
+    document.getElementById('msgModal').style.display = 'flex';
+    document.getElementById('msgBtnOk').onclick = function() {
+        cerrarModalMsg();
+        if (callback) callback();
     };
+}
 
-    // Inicializar Firebase
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-    const auth = firebase.auth();
+function cerrarModalMsg() { document.getElementById('msgModal').style.display = 'none'; }
+function cerrarModalEditProd() { document.getElementById('editProdModal').style.display = 'none'; }
+function cerrarModalEditMonto() { document.getElementById('editMontoModal').style.display = 'none'; }
 
-    let inventario = [];
-    let ventasHoy = [];
-    let historial = [];
-    let carrito = [];
+// --- RENDERIZADO DE TABLA DE PRODUCTOS ---
+function renderizar() {
+    let tbody = document.getElementById('cuerpoTabla');
+    if (!tbody) return;
 
-    // --- AUTENTICACIÓN ---
-    auth.onAuthStateChanged(user => {
-        if (user) {
-            document.getElementById('login-overlay').style.display = 'none';
-            document.getElementById('app-content').style.display = 'block';
-        } else {
-            document.getElementById('login-overlay').style.display = 'flex';
-            document.getElementById('app-content').style.display = 'none';
+    let busquedaInput = document.getElementById('busqueda');
+    let busqueda = busquedaInput ? busquedaInput.value.trim().toLowerCase() : '';
+    tbody.innerHTML = '';
+
+    if (!inventario || inventario.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="color: #888; padding: 20px; text-align: center;">No hay productos cargados en el inventario.</td></tr>';
+        return;
+    }
+
+    let coincidenciaEncontrada = false;
+
+    inventario.forEach((item, index) => {
+        if (item && item.nombre && item.nombre.toLowerCase().includes(busqueda)) {
+            coincidenciaEncontrada = true;
+            let costoNum = parseFloat(item.costo) || 0;
+            let porcNum = parseFloat(item.porcentaje) || 0;
+            let precioVenta = (costoNum * (1 + porcNum / 100)).toFixed(2);
+            let fotoHTML = item.foto ? `<img src="${item.foto}" width="50" style="border-radius:4px;">` : "Sin foto";
+
+            tbody.innerHTML += `<tr>
+                <td>${fotoHTML}</td>
+                <td>${item.nombre}</td>
+                <td>$${costoNum.toFixed(2)}</td>
+                <td>${porcNum}%</td>
+                <td><strong>$${precioVenta}</strong></td>
+                <td>${item.stock || 0}</td>
+                <td>
+                    <button class="btn-edit" onclick="editar(${index})">Editar</button>
+                    <button class="btn-remove" onclick="eliminarProducto(${index})">X</button>
+                    <input type="number" id="cant-${index}" value="1" min="1" style="width: 40px;">
+                    <button class="btn-add" onclick="agregarAlCarrito(${index})">Agregar</button>
+                </td>
+            </tr>`;
         }
     });
 
-    function iniciarSesion() {
-        const email = document.getElementById('loginEmail').value;
-        const pass = document.getElementById('loginPass').value;
-        if (!email || !pass) return mostrarAlerta("Por favor, ingresa tu correo y contraseña.");
-        
-        auth.signInWithEmailAndPassword(email, pass).catch(error => {
-            mostrarAlerta("Error al iniciar sesión. Revisa tus credenciales.");
-            console.error(error);
-        });
+    if (!coincidenciaEncontrada) {
+        tbody.innerHTML = '<tr><td colspan="7" style="color: #888; padding: 20px; text-align: center;">No se encontraron productos que coincidan con la búsqueda.</td></tr>';
+    }
+}
+
+function agregar() {
+    let nombre = document.getElementById('prod').value.trim();
+    let costo = parseFloat(document.getElementById('costo').value);
+    let stock = parseInt(document.getElementById('stock').value);
+    let porcentaje = parseFloat(document.getElementById('porcentaje').value) || 0;
+    let fileInput = document.getElementById('fotoInput');
+
+    if (!nombre || isNaN(costo) || isNaN(stock)) {
+        return mostrarAlerta("Completa los campos básicos (Nombre, Costo y Stock)");
     }
 
-    function cerrarSesion() {
-        auth.signOut();
-        document.getElementById('loginEmail').value = '';
-        document.getElementById('loginPass').value = '';
-    }
-
-    // --- REALTIME DATABASE LISTENERS ---
-    db.ref('almacen').on('value', (snapshot) => {
-        inventario = snapshot.val() || [];
-        renderizar();
-    });
-
-    db.ref('ventasHoy').on('value', (snapshot) => {
-        let data = snapshot.val() || [];
-        ventasHoy = data.map(v => typeof v === 'number' ? { total: v, ganancia: 0, descripcion: "Venta manual" } : v);
-        actualizarBalance();
-    });
-
-    db.ref('historial').on('value', (snapshot) => {
-        let data = snapshot.val() || [];
-        historial = data.map(h => typeof h.descripcion === 'undefined' ? { ...h, ganancia: 0, descripcion: "Sin descripción guardada" } : h);
-        actualizarBalance();
-    });
-
-    // --- MODALES ---
-    function mostrarAlerta(mensaje) {
-        document.getElementById('msgTitle').innerText = "Aviso";
-        document.getElementById('msgText').innerText = mensaje;
-        document.getElementById('msgBtnCancel').style.display = 'none';
-        document.getElementById('msgModal').style.display = 'flex';
-        document.getElementById('msgBtnOk').onclick = cerrarModalMsg;
-    }
-
-    function mostrarConfirmacion(mensaje, callback) {
-        document.getElementById('msgTitle').innerText = "Confirmación";
-        document.getElementById('msgText').innerText = mensaje;
-        document.getElementById('msgBtnCancel').style.display = 'inline-block';
-        document.getElementById('msgModal').style.display = 'flex';
-        document.getElementById('msgBtnOk').onclick = function() {
-            cerrarModalMsg();
-            if (callback) callback();
-        };
-    }
-
-    function cerrarModalMsg() { document.getElementById('msgModal').style.display = 'none'; }
-    function cerrarModalEditProd() { document.getElementById('editProdModal').style.display = 'none'; }
-    function cerrarModalEditMonto() { document.getElementById('editMontoModal').style.display = 'none'; }
-
-   function renderizar() {
-        let tbody = document.getElementById('cuerpoTabla');
-        let busquedaInput = document.getElementById('busqueda');
-        let busqueda = busquedaInput ? busquedaInput.value.trim().toLowerCase() : '';
-        tbody.innerHTML = '';
-
-        // 1. Filtrar el array para descartar elementos nulos, indefinidos o vacíos
-        let productosValidos = (inventario || []).filter(item => item && typeof item === 'object' && item.nombre);
-
-        if (productosValidos.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" style="color: #888; padding: 20px;">No hay productos cargados en el inventario.</td></tr>';
-            return;
-        }
-
-        // 2. Iterar sobre los productos válidos
-        productosValidos.forEach((item, index) => {
-            if (item.nombre.toLowerCase().includes(busqueda)) {
-                let costoNum = parseFloat(item.costo) || 0;
-                let porcNum = parseFloat(item.porcentaje) || 0;
-                let precioVenta = (costoNum * (1 + porcNum / 100)).toFixed(2);
-                let fotoHTML = item.foto ? `<img src="${item.foto}" width="50" style="border-radius:4px;">` : "Sin foto";
-
-                tbody.innerHTML += `<tr>
-                    <td>${fotoHTML}</td>
-                    <td>${item.nombre}</td>
-                    <td>$${costoNum.toFixed(2)}</td>
-                    <td>${porcNum}%</td>
-                    <td><strong>$${precioVenta}</strong></td>
-                    <td>${item.stock || 0}</td>
-                    <td>
-                        <button class="btn-edit" onclick="editar(${index})">Editar</button>
-                        <button class="btn-remove" onclick="eliminarProducto(${index})">X</button>
-                        <input type="number" id="cant-${index}" value="1" min="1" style="width: 40px;">
-                        <button class="btn-add" onclick="agregarAlCarrito(${index})">Agregar</button>
-                    </td>
-                </tr>`;
-            }
-        });
-    }
-        inventario.forEach((item, index) => {
-            if (item && item.nombre && item.nombre.toLowerCase().includes(busqueda)) {
-                let precioVenta = (parseFloat(item.costo) * (1 + parseFloat(item.porcentaje) / 100)).toFixed(2);
-                let fotoHTML = item.foto ? `<img src="${item.foto}" width="50" style="border-radius:4px;">` : "Sin foto";
-
-                tbody.innerHTML += `<tr>
-                    <td>${fotoHTML}</td>
-                    <td>${item.nombre}</td>
-                    <td>$${parseFloat(item.costo).toFixed(2)}</td>
-                    <td>${item.porcentaje}%</td>
-                    <td><strong>$${precioVenta}</strong></td>
-                    <td>${item.stock}</td>
-                    <td>
-                        <button class="btn-edit" onclick="editar(${index})">Editar</button>
-                        <button class="btn-remove" onclick="eliminarProducto(${index})">X</button>
-                        <input type="number" id="cant-${index}" value="1" min="1" style="width: 40px;">
-                        <button class="btn-add" onclick="agregarAlCarrito(${index})">Agregar</button>
-                    </td>
-                </tr>`;
-            }
-        });
-    }
-
-    function agregar() {
-        let nombre = document.getElementById('prod').value.trim();
-        let costo = parseFloat(document.getElementById('costo').value);
-        let stock = parseInt(document.getElementById('stock').value);
-        let porcentaje = parseFloat(document.getElementById('porcentaje').value) || 0;
-        let fileInput = document.getElementById('fotoInput');
-
-        if (!nombre || isNaN(costo) || isNaN(stock)) {
-            return mostrarAlerta("Completa los campos básicos (Nombre, Costo y Stock)");
-        }
-
-        function guardarObjeto(fotoData) {
-            inventario.push({ nombre, costo, stock, porcentaje, foto: fotoData });
-            db.ref('almacen').set(inventario);
-            document.getElementById('prod').value = '';
-            document.getElementById('costo').value = '';
-            document.getElementById('stock').value = '';
-            document.getElementById('porcentaje').value = '30';
-            document.getElementById('fotoInput').value = '';
-        }
-
-        if (fileInput.files && fileInput.files[0]) {
-            let reader = new FileReader();
-            reader.onload = function(e) { guardarObjeto(e.target.result); };
-            reader.readAsDataURL(fileInput.files[0]);
-        } else {
-            guardarObjeto(null);
-        }
-    }
-
-    function eliminarProducto(index) {
-        mostrarConfirmacion("¿Eliminar producto definitivamente?", function() {
-            inventario.splice(index, 1);
-            db.ref('almacen').set(inventario);
-        });
-    }
-
-    function editar(index) {
-        document.getElementById('editCosto').value = inventario[index].costo;
-        document.getElementById('editPorcentaje').value = inventario[index].porcentaje;
-        document.getElementById('editStock').value = inventario[index].stock;
-        document.getElementById('editProdModal').style.display = 'flex';
-
-        document.getElementById('btnGuardarProd').onclick = function() {
-            let nCosto = parseFloat(document.getElementById('editCosto').value);
-            let nPorcentaje = parseFloat(document.getElementById('editPorcentaje').value);
-            let nStock = parseInt(document.getElementById('editStock').value);
-
-            if (!isNaN(nCosto) && !isNaN(nPorcentaje) && !isNaN(nStock)) {
-                inventario[index].costo = nCosto;
-                inventario[index].porcentaje = nPorcentaje;
-                inventario[index].stock = nStock;
-                db.ref('almacen').set(inventario);
-                cerrarModalEditProd();
-            } else {
-                mostrarAlerta("Ingresa valores numéricos válidos.");
-            }
-        };
-    }
-
-    // --- CARRITO Y VENTAS ---
-    function agregarAlCarrito(index) {
-        let cantInput = document.getElementById(`cant-${index}`);
-        let cant = parseInt(cantInput.value);
-        let prod = inventario[index];
-
-        let costoUnitario = parseFloat(prod.costo);
-        let precioVenta = costoUnitario * (1 + parseFloat(prod.porcentaje) / 100);
-        let gananciaUnitaria = precioVenta - costoUnitario;
-
-        if (isNaN(cant) || cant <= 0) return mostrarAlerta("Ingrese una cantidad válida");
-
-        let yaEnCarrito = carrito.filter(item => item.nombre === prod.nombre).reduce((sum, item) => sum + item.cant, 0);
-
-        if ((cant + yaEnCarrito) <= prod.stock) {
-            carrito.push({
-                nombre: prod.nombre,
-                cant,
-                total: precioVenta * cant,
-                ganancia: gananciaUnitaria * cant
-            });
-            actualizarCarrito();
-            cantInput.value = 1;
-        } else {
-            mostrarAlerta("Stock insuficiente en inventario.");
-        }
-    }
-
-    function actualizarCarrito() {
-        let lista = document.getElementById('listaCarrito');
-        let suma = 0;
-        lista.innerHTML = "";
-        carrito.forEach((item, i) => {
-            lista.innerHTML += `<li style="margin-bottom: 5px; font-size: 14px;">
-                ${item.nombre} x${item.cant} ($${item.total.toFixed(2)}) 
-                <button class="btn-remove" style="padding:2px 6px; font-size:10px;" onclick="carrito.splice(${i},1);actualizarCarrito()">X</button>
-            </li>`;
-            suma += item.total;
-        });
-        document.getElementById('totalCarrito').innerText = suma.toFixed(2);
-    }
-
-    function confirmarVenta() {
-        if (carrito.length === 0) return mostrarAlerta("El carrito está vacío");
-
-        // Descontar del inventario buscando por nombre para evitar desfases de índice
-        carrito.forEach(item => {
-            let prod = inventario.find(p => p.nombre === item.nombre);
-            if (prod) prod.stock -= item.cant;
-        });
-
-        let descripcionVenta = carrito.map(item => `${item.cant}x ${item.nombre}`).join(', ');
-        let total = carrito.reduce((sum, item) => sum + item.total, 0);
-        let gananciaTotal = carrito.reduce((sum, item) => sum + item.ganancia, 0);
-
-        ventasHoy.push({
-            total: total,
-            ganancia: gananciaTotal,
-            descripcion: descripcionVenta,
-            items: [...carrito]
-        });
-
+    function guardarObjeto(fotoData) {
+        inventario.push({ nombre, costo, stock, porcentaje, foto: fotoData });
         db.ref('almacen').set(inventario);
-        db.ref('ventasHoy').set(ventasHoy);
+        document.getElementById('prod').value = '';
+        document.getElementById('costo').value = '';
+        document.getElementById('stock').value = '';
+        document.getElementById('porcentaje').value = '30';
+        document.getElementById('fotoInput').value = '';
+    }
 
+    if (fileInput.files && fileInput.files[0]) {
+        let reader = new FileReader();
+        reader.onload = function(e) { guardarObjeto(e.target.result); };
+        reader.readAsDataURL(fileInput.files[0]);
+    } else {
+        guardarObjeto(null);
+    }
+}
+
+function eliminarProducto(index) {
+    mostrarConfirmacion("¿Eliminar producto definitivamente?", function() {
+        inventario.splice(index, 1);
+        db.ref('almacen').set(inventario);
+    });
+}
+
+function editar(index) {
+    document.getElementById('editCosto').value = inventario[index].costo;
+    document.getElementById('editPorcentaje').value = inventario[index].porcentaje;
+    document.getElementById('editStock').value = inventario[index].stock;
+    document.getElementById('editProdModal').style.display = 'flex';
+
+    document.getElementById('btnGuardarProd').onclick = function() {
+        let nCosto = parseFloat(document.getElementById('editCosto').value);
+        let nPorcentaje = parseFloat(document.getElementById('editPorcentaje').value);
+        let nStock = parseInt(document.getElementById('editStock').value);
+
+        if (!isNaN(nCosto) && !isNaN(nPorcentaje) && !isNaN(nStock)) {
+            inventario[index].costo = nCosto;
+            inventario[index].porcentaje = nPorcentaje;
+            inventario[index].stock = nStock;
+            db.ref('almacen').set(inventario);
+            cerrarModalEditProd();
+        } else {
+            mostrarAlerta("Ingresa valores numéricos válidos.");
+        }
+    };
+}
+
+// --- CARRITO Y VENTAS ---
+function agregarAlCarrito(index) {
+    let cantInput = document.getElementById(`cant-${index}`);
+    let cant = parseInt(cantInput.value);
+    let prod = inventario[index];
+
+    if (!prod) return mostrarAlerta("Error seleccionando el producto.");
+
+    let costoUnitario = parseFloat(prod.costo) || 0;
+    let precioVenta = costoUnitario * (1 + (parseFloat(prod.porcentaje) || 0) / 100);
+    let gananciaUnitaria = precioVenta - costoUnitario;
+
+    if (isNaN(cant) || cant <= 0) return mostrarAlerta("Ingrese una cantidad válida");
+
+    let yaEnCarrito = carrito.filter(item => item.nombre === prod.nombre).reduce((sum, item) => sum + item.cant, 0);
+
+    if ((cant + yaEnCarrito) <= prod.stock) {
+        carrito.push({
+            nombre: prod.nombre,
+            cant,
+            total: precioVenta * cant,
+            ganancia: gananciaUnitaria * cant
+        });
+        actualizarCarrito();
+        cantInput.value = 1;
+    } else {
+        mostrarAlerta("Stock insuficiente en inventario.");
+    }
+}
+
+function actualizarCarrito() {
+    let lista = document.getElementById('listaCarrito');
+    let suma = 0;
+    lista.innerHTML = "";
+    carrito.forEach((item, i) => {
+        lista.innerHTML += `<li style="margin-bottom: 5px; font-size: 14px;">
+            ${item.nombre} x${item.cant} ($${item.total.toFixed(2)}) 
+            <button class="btn-remove" style="padding:2px 6px; font-size:10px;" onclick="carrito.splice(${i},1);actualizarCarrito()">X</button>
+        </li>`;
+        suma += item.total;
+    });
+    document.getElementById('totalCarrito').innerText = suma.toFixed(2);
+}
+
+function confirmarVenta() {
+    if (carrito.length === 0) return mostrarAlerta("El carrito está vacío");
+
+    carrito.forEach(item => {
+        let prod = inventario.find(p => p && p.nombre === item.nombre);
+        if (prod) prod.stock -= item.cant;
+    });
+
+    let descripcionVenta = carrito.map(item => `${item.cant}x ${item.nombre}`).join(', ');
+    let total = carrito.reduce((sum, item) => sum + item.total, 0);
+    let gananciaTotal = carrito.reduce((sum, item) => sum + item.ganancia, 0);
+
+    ventasHoy.push({
+        total: total,
+        ganancia: gananciaTotal,
+        descripcion: descripcionVenta,
+        items: [...carrito]
+    });
+
+    db.ref('almacen').set(inventario);
+    db.ref('ventasHoy').set(ventasHoy);
+
+    carrito = [];
+    actualizarCarrito();
+}
+
+function eliminarVentaHoy(index) {
+    mostrarConfirmacion("¿Eliminar esta venta? Se devolverán los productos al stock.", function() {
+        let venta = ventasHoy[index];
+
+        if (venta && venta.items) {
+            venta.items.forEach(item => {
+                let prod = inventario.find(p => p && p.nombre === item.nombre);
+                if (prod) prod.stock += item.cant;
+            });
+            db.ref('almacen').set(inventario);
+        }
+
+        ventasHoy.splice(index, 1);
+        db.ref('ventasHoy').set(ventasHoy);
+    });
+}
+
+// --- BALANCE Y CIERRES ---
+function cerrarDia() {
+    if (ventasHoy.length === 0) return mostrarAlerta("No hay ventas registradas el día de hoy.");
+
+    mostrarConfirmacion("¿Seguro que deseas cerrar el día? Las ventas pasarán al historial.", function() {
+        let totalDia = ventasHoy.reduce((a, b) => a + (b.total || 0), 0);
+        let gananciaDia = ventasHoy.reduce((a, b) => a + (b.ganancia || 0), 0);
+        let todoLoVendidoHoy = ventasHoy.map(v => v.descripcion).join(' | ');
+
+        let itemsVendidosHoy = [];
+        ventasHoy.forEach(v => {
+            if (v.items) itemsVendidosHoy.push(...v.items);
+        });
+
+        historial.push({
+            fecha: new Date().toLocaleDateString(),
+            total: totalDia,
+            ganancia: gananciaDia,
+            descripcion: todoLoVendidoHoy,
+            items: itemsVendidosHoy
+        });
+
+        db.ref('historial').set(historial);
+        db.ref('ventasHoy').remove();
         carrito = [];
         actualizarCarrito();
-    }
+    });
+}
 
-    function eliminarVentaHoy(index) {
-        mostrarConfirmacion("¿Eliminar esta venta? Se devolverán los productos al stock.", function() {
-            let venta = ventasHoy[index];
+function eliminarCierre(index) {
+    mostrarConfirmacion("¿Eliminar este registro de cierre? Se devolverá el stock de los productos vendidos.", function() {
+        let cierre = historial[index];
 
-            if (venta && venta.items) {
-                venta.items.forEach(item => {
-                    let prod = inventario.find(p => p.nombre === item.nombre);
-                    if (prod) prod.stock += item.cant;
-                });
-                db.ref('almacen').set(inventario);
-            }
-
-            ventasHoy.splice(index, 1);
-            db.ref('ventasHoy').set(ventasHoy);
-        });
-    }
-
-    // --- BALANCE Y CIERRES ---
-    function cerrarDia() {
-        if (ventasHoy.length === 0) return mostrarAlerta("No hay ventas registradas el día de hoy.");
-
-        mostrarConfirmacion("¿Seguro que deseas cerrar el día? Las ventas pasarán al historial.", function() {
-            let totalDia = ventasHoy.reduce((a, b) => a + (b.total || 0), 0);
-            let gananciaDia = ventasHoy.reduce((a, b) => a + (b.ganancia || 0), 0);
-            let todoLoVendidoHoy = ventasHoy.map(v => v.descripcion).join(' | ');
-
-            let itemsVendidosHoy = [];
-            ventasHoy.forEach(v => {
-                if (v.items) itemsVendidosHoy.push(...v.items);
+        if (cierre && cierre.items) {
+            cierre.items.forEach(soldItem => {
+                let prod = inventario.find(p => p && p.nombre === soldItem.nombre);
+                if (prod) prod.stock += soldItem.cant;
             });
+            db.ref('almacen').set(inventario);
+        }
 
-            historial.push({
-                fecha: new Date().toLocaleDateString(),
-                total: totalDia,
-                ganancia: gananciaDia,
-                descripcion: todoLoVendidoHoy,
-                items: itemsVendidosHoy
-            });
+        historial.splice(index, 1);
+        db.ref('historial').set(historial);
+    });
+}
 
-            db.ref('historial').set(historial);
-            db.ref('ventasHoy').remove();
-            carrito = [];
-            actualizarCarrito();
-        });
-    }
+function limpiarHistorial() {
+    mostrarConfirmacion("¿Seguro que deseas borrar por completo el historial de cierres? Esta acción no se puede deshacer.", function() {
+        db.ref('historial').remove();
+    });
+}
 
-    function eliminarCierre(index) {
-        mostrarConfirmacion("¿Eliminar este registro de cierre? Se devolverá el stock de los productos vendidos.", function() {
-            let cierre = historial[index];
+function actualizarBalance() {
+    let totalHoy = ventasHoy.reduce((a, b) => a + (b.total || 0), 0);
+    let gananciaHoy = ventasHoy.reduce((a, b) => a + (b.ganancia || 0), 0);
+    let totalMes = historial.reduce((sum, item) => sum + (item.total || 0), 0);
+    let gananciaMes = historial.reduce((sum, item) => sum + (item.ganancia || 0), 0);
 
-            if (cierre && cierre.items) {
-                cierre.items.forEach(soldItem => {
-                    let prod = inventario.find(p => p.nombre === soldItem.nombre);
-                    if (prod) prod.stock += soldItem.cant;
-                });
-                db.ref('almacen').set(inventario);
-            }
+    let elemTotalHoy = document.getElementById('recaudadoHoy');
+    let elemGananciaHoy = document.getElementById('gananciaHoy');
+    let elemTotalMes = document.getElementById('totalMes');
+    let elemGananciaMes = document.getElementById('gananciaMes');
 
-            historial.splice(index, 1);
-            db.ref('historial').set(historial);
-        });
-    }
+    if (elemTotalHoy) elemTotalHoy.innerText = "$" + totalHoy.toFixed(2);
+    if (elemGananciaHoy) elemGananciaHoy.innerText = "$" + gananciaHoy.toFixed(2);
+    if (elemTotalMes) elemTotalMes.innerText = "$" + totalMes.toFixed(2);
+    if (elemGananciaMes) elemGananciaMes.innerText = "$" + gananciaMes.toFixed(2);
 
-    function limpiarHistorial() {
-        mostrarConfirmacion("¿Seguro que deseas borrar por completo el historial de cierres? Esta acción no se puede deshacer.", function() {
-            db.ref('historial').remove();
-        });
-    }
-
-    function actualizarBalance() {
-        let totalHoy = ventasHoy.reduce((a, b) => a + (b.total || 0), 0);
-        let gananciaHoy = ventasHoy.reduce((a, b) => a + (b.ganancia || 0), 0);
-        let totalMes = historial.reduce((sum, item) => sum + (item.total || 0), 0);
-        let gananciaMes = historial.reduce((sum, item) => sum + (item.ganancia || 0), 0);
-
-        document.getElementById('recaudadoHoy').innerText = "$" + totalHoy.toFixed(2);
-        document.getElementById('gananciaHoy').innerText = "$" + gananciaHoy.toFixed(2);
-        document.getElementById('totalMes').innerText = "$" + totalMes.toFixed(2);
-        document.getElementById('gananciaMes').innerText = "$" + gananciaMes.toFixed(2);
-
-        let listaVentas = document.getElementById('listaVentasHoy');
+    let listaVentas = document.getElementById('listaVentasHoy');
+    if (listaVentas) {
         listaVentas.innerHTML = "";
         if (ventasHoy.length === 0) {
             listaVentas.innerHTML = "<li style='color:#888; border:none;'>Sin ventas aún</li>";
@@ -383,8 +382,10 @@
                 }
             });
         }
+    }
 
-        let listaCierres = document.getElementById('listaCierres');
+    let listaCierres = document.getElementById('listaCierres');
+    if (listaCierres) {
         listaCierres.innerHTML = "";
         if (historial.length === 0) {
             listaCierres.innerHTML = "<li style='color:#888; border:none;'>No hay cierres guardados</li>";
@@ -406,34 +407,77 @@
             });
         }
     }
+}
 
-    // --- EDICIÓN DE MONTOS ---
-    let editMontoIndex = -1;
-    let editMontoTipo = '';
+// --- EDICIÓN DE MONTOS ---
+let editMontoIndex = -1;
+let editMontoTipo = '';
 
-    function abrirEditarMonto(tipo, index) {
-        editMontoTipo = tipo;
-        editMontoIndex = index;
+function abrirEditarMonto(tipo, index) {
+    editMontoTipo = tipo;
+    editMontoIndex = index;
 
-        let montoActual = (tipo === 'venta') ? ventasHoy[index].total : historial[index].total;
+    let montoActual = (tipo === 'venta') ? ventasHoy[index].total : historial[index].total;
 
-        document.getElementById('editMontoNuevo').value = montoActual;
-        document.getElementById('editMontoModal').style.display = 'flex';
+    document.getElementById('editMontoNuevo').value = montoActual;
+    document.getElementById('editMontoModal').style.display = 'flex';
 
-        document.getElementById('btnGuardarMonto').onclick = function() {
-            let nuevoMonto = parseFloat(document.getElementById('editMontoNuevo').value);
-            if (!isNaN(nuevoMonto) && nuevoMonto >= 0) {
-                if (editMontoTipo === 'venta') {
-                    ventasHoy[editMontoIndex].total = nuevoMonto;
-                    db.ref('ventasHoy').set(ventasHoy);
-                } else if (editMontoTipo === 'cierre') {
-                    historial[editMontoIndex].total = nuevoMonto;
-                    db.ref('historial').set(historial);
-                }
-                cerrarModalEditMonto();
-            } else {
-                mostrarAlerta("Por favor, ingrese un número válido.");
+    document.getElementById('btnGuardarMonto').onclick = function() {
+        let nuevoMonto = parseFloat(document.getElementById('editMontoNuevo').value);
+        if (!isNaN(nuevoMonto) && nuevoMonto >= 0) {
+            if (editMontoTipo === 'venta') {
+                ventasHoy[editMontoIndex].total = nuevoMonto;
+                db.ref('ventasHoy').set(ventasHoy);
+            } else if (editMontoTipo === 'cierre') {
+                historial[editMontoIndex].total = nuevoMonto;
+                db.ref('historial').set(historial);
             }
-        };
+            cerrarModalEditMonto();
+        } else {
+            mostrarAlerta("Por favor, ingrese un número válido.");
+        }
+    };
+}
+
+// --- HERRAMIENTA DE RECUPERACIÓN DE INVENTARIO ---
+function recuperarProductosCierres() {
+    if (!historial || historial.length === 0) {
+        return mostrarAlerta("No hay registros en el historial para recuperar productos.");
     }
-</script>
+
+    let mapProductos = {};
+
+    (inventario || []).forEach(p => {
+        if (p && p.nombre) {
+            mapProductos[p.nombre.trim().toLowerCase()] = { ...p };
+        }
+    });
+
+    historial.forEach(cierre => {
+        if (cierre && cierre.items && Array.isArray(cierre.items)) {
+            cierre.items.forEach(item => {
+                if (item && item.nombre) {
+                    let key = item.nombre.trim().toLowerCase();
+                    if (!mapProductos[key]) {
+                        mapProductos[key] = {
+                            nombre: item.nombre,
+                            costo: item.total && item.cant ? Math.round((item.total - (item.ganancia || 0)) / item.cant) : 0,
+                            porcentaje: 30,
+                            stock: 0,
+                            foto: null
+                        };
+                    }
+                }
+            });
+        }
+    });
+
+    let nuevosProductos = Object.values(mapProductos);
+    if (nuevosProductos.length > inventario.length) {
+        inventario = nuevosProductos;
+        db.ref('almacen').set(inventario);
+        mostrarAlerta(`¡Éxito! Se recuperaron ${inventario.length} productos en total desde el historial.`);
+    } else {
+        mostrarAlerta("No se encontraron productos adicionales en el historial de ventas.");
+    }
+}
