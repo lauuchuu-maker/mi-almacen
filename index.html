@@ -91,17 +91,45 @@
     function cerrarModalEditProd() { document.getElementById('editProdModal').style.display = 'none'; }
     function cerrarModalEditMonto() { document.getElementById('editMontoModal').style.display = 'none'; }
 
-    // --- INVENTARIO Y TABLA ---
-    function renderizar() {
+   function renderizar() {
         let tbody = document.getElementById('cuerpoTabla');
-        let busqueda = document.getElementById('busqueda').value.toLowerCase();
+        let busquedaInput = document.getElementById('busqueda');
+        let busqueda = busquedaInput ? busquedaInput.value.trim().toLowerCase() : '';
         tbody.innerHTML = '';
 
-        if (inventario.length === 0) {
+        // 1. Filtrar el array para descartar elementos nulos, indefinidos o vacíos
+        let productosValidos = (inventario || []).filter(item => item && typeof item === 'object' && item.nombre);
+
+        if (productosValidos.length === 0) {
             tbody.innerHTML = '<tr><td colspan="7" style="color: #888; padding: 20px;">No hay productos cargados en el inventario.</td></tr>';
             return;
         }
 
+        // 2. Iterar sobre los productos válidos
+        productosValidos.forEach((item, index) => {
+            if (item.nombre.toLowerCase().includes(busqueda)) {
+                let costoNum = parseFloat(item.costo) || 0;
+                let porcNum = parseFloat(item.porcentaje) || 0;
+                let precioVenta = (costoNum * (1 + porcNum / 100)).toFixed(2);
+                let fotoHTML = item.foto ? `<img src="${item.foto}" width="50" style="border-radius:4px;">` : "Sin foto";
+
+                tbody.innerHTML += `<tr>
+                    <td>${fotoHTML}</td>
+                    <td>${item.nombre}</td>
+                    <td>$${costoNum.toFixed(2)}</td>
+                    <td>${porcNum}%</td>
+                    <td><strong>$${precioVenta}</strong></td>
+                    <td>${item.stock || 0}</td>
+                    <td>
+                        <button class="btn-edit" onclick="editar(${index})">Editar</button>
+                        <button class="btn-remove" onclick="eliminarProducto(${index})">X</button>
+                        <input type="number" id="cant-${index}" value="1" min="1" style="width: 40px;">
+                        <button class="btn-add" onclick="agregarAlCarrito(${index})">Agregar</button>
+                    </td>
+                </tr>`;
+            }
+        });
+    }
         inventario.forEach((item, index) => {
             if (item && item.nombre && item.nombre.toLowerCase().includes(busqueda)) {
                 let precioVenta = (parseFloat(item.costo) * (1 + parseFloat(item.porcentaje) / 100)).toFixed(2);
