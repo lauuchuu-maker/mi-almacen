@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mi Almacén</title>
-    <!-- Carga de SDKs de Firebase (v8) -->
+    <!-- Librerías de Firebase -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -13,28 +13,23 @@
         * { box-sizing: border-box; font-family: Arial, sans-serif; }
         body { margin: 0; padding: 20px; background-color: #f4f6f9; color: #333; }
         
-        /* Modal Login */
         #login-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000;
+            background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 1000;
         }
         .login-box { background: white; padding: 30px; border-radius: 8px; width: 300px; text-align: center; }
         .login-box input { width: 100%; padding: 8px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; }
         
-        /* Layout principal */
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .container { display: flex; gap: 20px; flex-wrap: wrap; }
         .main-panel { flex: 2; min-width: 300px; }
         .side-panel { flex: 1; min-width: 280px; }
-
         .card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
         
-        /* Formulario e Inputs */
         input[type="text"], input[type="number"], input[type="password"] { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
         .form-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
         .form-row input { flex: 1; min-width: 120px; }
 
-        /* Botones */
         button { cursor: pointer; padding: 8px 12px; border: none; border-radius: 4px; background: #2196F3; color: white; font-weight: bold; }
         button:hover { opacity: 0.9; }
         .btn-add { background: #4CAF50; }
@@ -42,16 +37,13 @@
         .btn-edit { background: #ff9800; }
         .btn-close-day { background: #673AB7; width: 100%; padding: 12px; margin-top: 10px; font-size: 16px; }
 
-        /* Tabla */
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
         th { background: #f8f9fa; }
 
-        /* Modales genéricos */
         .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 2000; }
         .modal-content { background: white; padding: 20px; border-radius: 8px; width: 320px; }
         
-        /* Listas */
         ul { list-style: none; padding: 0; margin: 0; }
         li { padding: 8px 0; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
         .detalles-venta { display: block; font-size: 12px; color: #666; }
@@ -59,8 +51,8 @@
 </head>
 <body>
 
-    <!-- OVERLAY LOGIN -->
-    <div id="login-overlay">
+    <!-- PANTALLA DE LOGIN -->
+    <div id="login-overlay" style="display: flex;">
         <div class="login-box">
             <h2>Mi Almacén</h2>
             <input type="email" id="loginEmail" placeholder="Correo electrónico">
@@ -69,8 +61,8 @@
         </div>
     </div>
 
-    <!-- CONTENIDO PRINCIPAL -->
-    <div id="app-content" style="display:none;">
+    <!-- PANTALLA PRINCIPAL DE LA APP -->
+    <div id="app-content" style="display: block;">
         <div class="header">
             <h1>Gestión de Almacén</h1>
             <button onclick="cerrarSesion()" class="btn-remove">Cerrar Sesión</button>
@@ -116,7 +108,7 @@
                             </tr>
                         </thead>
                         <tbody id="cuerpoTabla">
-                            <!-- Filas cargadas dinámicamente -->
+                            <tr><td colspan="7" style="text-align:center; padding:20px;">Cargando inventario...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -191,7 +183,6 @@
         </div>
     </div>
 
-    <!-- SCRIPT PRINCIPAL -->
     <script>
         // CONFIGURACIÓN DE FIREBASE
         const firebaseConfig = {
@@ -205,8 +196,12 @@
             measurementId: "G-0M16DBWTSD"
         };
 
-        // Inicializar Firebase
-        firebase.initializeApp(firebaseConfig);
+        try {
+            firebase.initializeApp(firebaseConfig);
+        } catch(e) {
+            console.error("Error al inicializar Firebase:", e);
+        }
+
         const db = firebase.database();
         const auth = firebase.auth();
 
@@ -215,14 +210,13 @@
         let historial = [];
         let carrito = [];
 
-        // --- AUTENTICACIÓN ---
+        // AUTENTICACIÓN
         auth.onAuthStateChanged(user => {
+            const overlay = document.getElementById('login-overlay');
             if (user) {
-                document.getElementById('login-overlay').style.display = 'none';
-                document.getElementById('app-content').style.display = 'block';
+                if (overlay) overlay.style.display = 'none';
             } else {
-                document.getElementById('login-overlay').style.display = 'flex';
-                document.getElementById('app-content').style.display = 'none';
+                if (overlay) overlay.style.display = 'flex';
             }
         });
 
@@ -243,7 +237,7 @@
             document.getElementById('loginPass').value = '';
         }
 
-        // --- REALTIME DATABASE LISTENERS ---
+        // BASE DE DATOS
         db.ref('almacen').on('value', (snapshot) => {
             let val = snapshot.val();
             if (!val) {
@@ -270,7 +264,7 @@
             actualizarBalance();
         });
 
-        // --- MODALES ---
+        // MODALES
         function mostrarAlerta(mensaje) {
             document.getElementById('msgTitle').innerText = "Aviso";
             document.getElementById('msgText').innerText = mensaje;
@@ -294,7 +288,7 @@
         function cerrarModalEditProd() { document.getElementById('editProdModal').style.display = 'none'; }
         function cerrarModalEditMonto() { document.getElementById('editMontoModal').style.display = 'none'; }
 
-        // --- RENDERIZADO DE TABLA DE PRODUCTOS ---
+        // TABLA PRODUCTOS
         function renderizar() {
             let tbody = document.getElementById('cuerpoTabla');
             if (!tbody) return;
@@ -336,7 +330,7 @@
             });
 
             if (!coincidenciaEncontrada) {
-                tbody.innerHTML = '<tr><td colspan="7" style="color: #888; padding: 20px; text-align: center;">No se encontraron productos que coincidan con la búsqueda.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" style="color: #888; padding: 20px; text-align: center;">No se encontraron productos.</td></tr>';
             }
         }
 
@@ -400,7 +394,7 @@
             };
         }
 
-        // --- CARRITO Y VENTAS ---
+        // CARRITO Y VENTAS
         function agregarAlCarrito(index) {
             let cantInput = document.getElementById(`cant-${index}`);
             let cant = parseInt(cantInput.value);
@@ -487,7 +481,7 @@
             });
         }
 
-        // --- BALANCE Y CIERRES ---
+        // BALANCE Y CIERRES
         function cerrarDia() {
             if (ventasHoy.length === 0) return mostrarAlerta("No hay ventas registradas el día de hoy.");
 
@@ -534,7 +528,7 @@
         }
 
         function limpiarHistorial() {
-            mostrarConfirmacion("¿Seguro que deseas borrar por completo el historial de cierres? Esta acción no se puede deshacer.", function() {
+            mostrarConfirmacion("¿Seguro que deseas borrar por completo el historial de cierres?", function() {
                 db.ref('historial').remove();
             });
         }
@@ -604,7 +598,7 @@
             }
         }
 
-        // --- EDICIÓN DE MONTOS ---
+        // EDICIÓN DE MONTOS
         let editMontoIndex = -1;
         let editMontoTipo = '';
 
@@ -634,7 +628,7 @@
             };
         }
 
-        // --- HERRAMIENTA DE RECUPERACIÓN DE INVENTARIO ---
+        // RECUPERACIÓN DE INVENTARIO
         function recuperarProductosCierres() {
             if (!historial || historial.length === 0) {
                 return mostrarAlerta("No hay registros en el historial para recuperar productos.");
