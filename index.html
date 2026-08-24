@@ -83,10 +83,20 @@
                         <input type="file" id="fotoInput" accept="image/*">
                         <button onclick="agregar()" class="btn-add">Guardar Producto</button>
                     </div>
-                    <div style="margin-top: 10px;">
-                        <button onclick="recuperarProductosCierres()" style="background:#ff9800; width:100%;">
-                            🔄 Reconstruir Inventario desde Historial
+                    <div style="margin-top: 10px; display: flex; gap: 5px;">
+                        <button onclick="recuperarProductosCierres()" style="background:#ff9800; flex: 1;">
+                            🔄 Reconstruir Inventario
                         </button>
+                    </div>
+                    <!-- SECCIÓN DE COPIAS DE SEGURIDAD -->
+                    <div style="margin-top: 10px; display: flex; gap: 5px;">
+                        <button onclick="exportarCopiaSeguridad()" style="background:#009688; flex: 1;">
+                            📥 Descargar Copia de Seguridad
+                        </button>
+                        <button onclick="document.getElementById('fileImportarBackup').click()" style="background:#00bcd4; flex: 1;">
+                            📤 Cargar Copia de Seguridad
+                        </button>
+                        <input type="file" id="fileImportarBackup" accept=".json" style="display:none;" onchange="importarCopiaSeguridad(event)">
                     </div>
                 </div>
 
@@ -680,10 +690,69 @@
             if (nuevosProductos.length > inventario.length) {
                 inventario = nuevosProductos;
                 db.ref('almacen').set(inventario);
-                mostrarAlerta(`¡Éxito! Se recuperaron ${inventario.length} productos en total desde el historial.`);
+                mostrarAlerta("Inventario actualizado desde el historial.");
             } else {
-                mostrarAlerta("No se encontraron productos adicionales en el historial de ventas.");
+                mostrarAlerta("No se encontraron productos nuevos en el historial.");
             }
+        }
+
+        // NUEVAS FUNCIONES DE COPIA DE SEGURIDAD (EXPORTAR E IMPORTAR A FIREBASE)
+        function exportarCopiaSeguridad() {
+            const backup = {
+                inventario: inventario,
+                ventasHoy: ventasHoy,
+                historial: historial,
+                fechaRespaldo: new Date().toISOString()
+            };
+
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backup, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `backup_almacen_${new Date().toISOString().slice(0,10)}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        function importarCopiaSeguridad(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+
+                    if (!data.inventario && !data.historial && !data.ventasHoy) {
+                        return mostrarAlerta("El archivo seleccionado no tiene un formato válido de copia de seguridad.");
+                    }
+
+                    mostrarConfirmacion("¿Deseas restaurar esta copia de seguridad? Se actualizarán Firebase y la pantalla.", function() {
+                        if (data.inventario) {
+                            inventario = data.inventario;
+                            db.ref('almacen').set(inventario);
+                        }
+                        if (data.ventasHoy) {
+                            ventasHoy = data.ventasHoy;
+                            db.ref('ventasHoy').set(ventasHoy);
+                        } else {
+                            db.ref('ventasHoy').remove();
+                        }
+                        if (data.historial) {
+                            historial = data.historial;
+                            db.ref('historial').set(historial);
+                        } else {
+                            db.ref('historial').remove();
+                        }
+
+                        mostrarAlerta("¡Copia de seguridad cargada y guardada en la nube con éxito!");
+                    });
+                } catch (err) {
+                    mostrarAlerta("Error al leer el archivo JSON.");
+                    console.error(err);
+                }
+            };
+            reader.readAsText(file);
         }
     </script>
 </body>
