@@ -169,6 +169,8 @@
     <div id="editProdModal" class="modal">
         <div class="modal-content">
             <h3>Editar Producto</h3>
+            <label>Nombre del Producto:</label>
+            <input type="text" id="editNombre" style="width:100%; margin-bottom:10px;">
             <label>Costo ($):</label>
             <input type="number" id="editCosto" style="width:100%; margin-bottom:10px;">
             <label>% Ganancia:</label>
@@ -384,6 +386,7 @@
         }
 
         function editar(index) {
+            document.getElementById('editNombre').value = inventario[index].nombre || '';
             document.getElementById('editCosto').value = inventario[index].costo;
             document.getElementById('editPorcentaje').value = inventario[index].porcentaje;
             document.getElementById('editStock').value = inventario[index].stock;
@@ -391,12 +394,14 @@
             document.getElementById('editProdModal').style.display = 'flex';
 
             document.getElementById('btnGuardarProd').onclick = function() {
+                let nNombre = document.getElementById('editNombre').value.trim();
                 let nCosto = parseFloat(document.getElementById('editCosto').value);
                 let nPorcentaje = parseFloat(document.getElementById('editPorcentaje').value);
                 let nStock = parseInt(document.getElementById('editStock').value);
                 let fileInput = document.getElementById('editFotoInput');
 
-                if (!isNaN(nCosto) && !isNaN(nPorcentaje) && !isNaN(nStock)) {
+                if (nNombre && !isNaN(nCosto) && !isNaN(nPorcentaje) && !isNaN(nStock)) {
+                    inventario[index].nombre = nNombre;
                     inventario[index].costo = nCosto;
                     inventario[index].porcentaje = nPorcentaje;
                     inventario[index].stock = nStock;
@@ -414,7 +419,7 @@
                         cerrarModalEditProd();
                     }
                 } else {
-                    mostrarAlerta("Ingresa valores numéricos válidos.");
+                    mostrarAlerta("Ingresa valores válidos en todos los campos.");
                 }
             };
         }
@@ -675,7 +680,7 @@
                             if (!mapProductos[key]) {
                                 mapProductos[key] = {
                                     nombre: item.nombre,
-                                    costo: item.total && item.cant ? Math.round((item.total - (item.ganancia || 0)) / item.cant) : 0,
+                                    costo: item.total ? (item.total / item.cant) : 0,
                                     porcentaje: 30,
                                     stock: 0,
                                     foto: null
@@ -686,27 +691,21 @@
                 }
             });
 
-            let nuevosProductos = Object.values(mapProductos);
-            if (nuevosProductos.length > inventario.length) {
-                inventario = nuevosProductos;
-                db.ref('almacen').set(inventario);
-                mostrarAlerta("Inventario actualizado desde el historial.");
-            } else {
-                mostrarAlerta("No se encontraron productos nuevos en el historial.");
-            }
+            inventario = Object.values(mapProductos);
+            db.ref('almacen').set(inventario);
+            mostrarAlerta("Inventario reconstruido con éxito a partir de los cierres.");
         }
 
-        // NUEVAS FUNCIONES DE COPIA DE SEGURIDAD (EXPORTAR E IMPORTAR A FIREBASE)
+        // EXPORTAR E IMPORTAR COPIA DE SEGURIDAD
         function exportarCopiaSeguridad() {
-            const backup = {
+            let dataBackup = {
                 inventario: inventario,
                 ventasHoy: ventasHoy,
-                historial: historial,
-                fechaRespaldo: new Date().toISOString()
+                historial: historial
             };
 
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backup, null, 2));
-            const downloadAnchor = document.createElement('a');
+            let dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataBackup, null, 2));
+            let downloadAnchor = document.createElement('a');
             downloadAnchor.setAttribute("href", dataStr);
             downloadAnchor.setAttribute("download", `backup_almacen_${new Date().toISOString().slice(0,10)}.json`);
             document.body.appendChild(downloadAnchor);
@@ -715,41 +714,25 @@
         }
 
         function importarCopiaSeguridad(event) {
-            const file = event.target.files[0];
+            let file = event.target.files[0];
             if (!file) return;
 
-            const reader = new FileReader();
+            let reader = new FileReader();
             reader.onload = function(e) {
                 try {
-                    const data = JSON.parse(e.target.result);
-
-                    if (!data.inventario && !data.historial && !data.ventasHoy) {
-                        return mostrarAlerta("El archivo seleccionado no tiene un formato válido de copia de seguridad.");
+                    let data = JSON.parse(e.target.result);
+                    if (data.inventario || data.ventasHoy || data.historial) {
+                        mostrarConfirmacion("¿Deseas restaurar esta copia de seguridad? Se sobrescribirán los datos actuales.", function() {
+                            if (data.inventario) db.ref('almacen').set(data.inventario);
+                            if (data.ventasHoy) db.ref('ventasHoy').set(data.ventasHoy);
+                            if (data.historial) db.ref('historial').set(data.historial);
+                            mostrarAlerta("Copia de seguridad restaurada correctamente.");
+                        });
+                    } else {
+                        mostrarAlerta("El archivo JSON no tiene un formato válido para este sistema.");
                     }
-
-                    mostrarConfirmacion("¿Deseas restaurar esta copia de seguridad? Se actualizarán Firebase y la pantalla.", function() {
-                        if (data.inventario) {
-                            inventario = data.inventario;
-                            db.ref('almacen').set(inventario);
-                        }
-                        if (data.ventasHoy) {
-                            ventasHoy = data.ventasHoy;
-                            db.ref('ventasHoy').set(ventasHoy);
-                        } else {
-                            db.ref('ventasHoy').remove();
-                        }
-                        if (data.historial) {
-                            historial = data.historial;
-                            db.ref('historial').set(historial);
-                        } else {
-                            db.ref('historial').remove();
-                        }
-
-                        mostrarAlerta("¡Copia de seguridad cargada y guardada en la nube con éxito!");
-                    });
-                } catch (err) {
-                    mostrarAlerta("Error al leer el archivo JSON.");
-                    console.error(err);
+                } catch(err) {
+                    mostrarAlerta("Error al procesar el archivo JSON.");
                 }
             };
             reader.readAsText(file);
